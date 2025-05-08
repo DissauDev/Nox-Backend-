@@ -1,0 +1,125 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  password  String
+  orders    Order[]
+  role      Roles
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id                    String      @id @default(uuid())
+  orderNumber           String      @unique
+  status                OrderStatus @default(PROCESSING)
+  createdAt             DateTime    @default(now())
+  totalAmount           Float
+  subtotal              Float
+  paymentMethod         String
+  stripePaymentIntentId String
+  // Customer info (guest or registered user)
+  userId                String?     @map("user_id")
+  user                  User?       @relation(fields: [userId], references: [id])
+  customerName          String
+  customerEmail         String
+  customerPhone         String
+  customerAddress       String
+
+  items OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String  @map("order_id")
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+
+  options        Json? // Array de ProductOption serializado
+  specifications String?
+
+  @@map("order_items")
+}
+
+enum ProductType {
+  REGULAR
+  SEASONAL
+}
+
+enum ProductStatus {
+  AVAILABLE
+  DISABLED
+  OUT_OF_STOCK
+}
+
+model Product {
+  id             String        @id @default(uuid())
+  name           String        @unique
+  price          Float
+  sellPrice      Float?
+  options        Json? // Array de ProductOption serializado
+  specifications String?
+  orders         OrderItem[]
+  category       String
+  imageLeft      Json? // Objeto: { url: string, blurHash: string }
+  imageRight     Json? // Objeto opcional: { url: string, blurHash: string }
+  description    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  type           ProductType   @default(REGULAR)
+  status         ProductStatus @default(AVAILABLE)
+
+  @@map("products")
+}
+
+model Page {
+  id          Int      @id @default(autoincrement())
+  title       String
+  slug        String   @unique
+  layout      Json // el JSON con tu árbol de componentes
+  isPublished Boolean  @default(false) // opcional para drafts
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/**
+ * model Page {
+ * id        Int      @id @default(autoincrement())
+ * title     String
+ * slug      String   @unique
+ * layout    Json
+ * createdAt DateTime @default(now())
+ * updatedAt DateTime @updatedAt
+ * }
+ */
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum Roles {
+  USER
+  ADMIN
+  EMPLOYEE
+}
