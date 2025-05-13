@@ -13,7 +13,7 @@ exports.getImages = (req, res) => {
     // Genera un arreglo con la información de cada imagen
     const images = files.map(file => ({
       filename: file,
-      url: `${req.protocol}://${req.get('host')}/api/${file}`
+      url: `${req.protocol}://${req.get('host')}/uploads/${file}`
     }));
     res.json({ images });
   });
@@ -34,7 +34,7 @@ exports.getImageDetails = (req, res) => {
       }
       res.json({
         filename,
-        url: `${req.protocol}://${req.get('host')}/api/${filename}`,
+        url: `${req.protocol}://${req.get('host')}/uploads/${filename}`,
         size: stats.size,
         createdAt: stats.birthtime
       });
@@ -47,7 +47,7 @@ exports.uploadImage = (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No se ha subido ningún archivo.' });
   }
-  const imageUrl = `${req.protocol}://${req.get('host')}/api/${req.file.filename}`;
+  const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   res.status(201).json({
     message: 'Imagen subida correctamente.',
     image: {
@@ -87,7 +87,7 @@ exports.updateImage = (req, res) => {
       if (err) {
         return res.status(500).json({ error: 'Error al eliminar la imagen anterior.' });
       }
-      const newImageUrl = `${req.protocol}://${req.get('host')}/api/${req.file.filename}`;
+      const newImageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
       res.json({
         message: 'Imagen actualizada correctamente.',
         image: {

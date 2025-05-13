@@ -30,7 +30,7 @@ app.use(limiter);
 // Rutas
 
 app.use('/api', productRoutes);
-app.use('/api', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', orderRoutes);
 app.use('/api', uploadRoutes);
 app.use('/api', stripeRoutes);
