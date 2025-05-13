@@ -69,8 +69,6 @@ exports.deleteImage = (req, res) => {
   });
 };
 
-// Actualiza una imagen reemplazando la antigua con una nueva.
-// Se espera que en la misma petición se suba el nuevo archivo mediante Multer.
 exports.updateImage = (req, res) => {
   const { filename } = req.params;
   const oldImagePath = path.join(__dirname, '../../uploads', filename);
