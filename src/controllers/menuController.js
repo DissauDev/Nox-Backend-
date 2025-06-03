@@ -5,53 +5,64 @@ const { categories } = require('../utils/Categorys');
  async function getMenu(req, res) {
   try {
     // Obtener todos los productos cuyas categorías están en la lista de categorías
-    const products = await prisma.product.findMany({
-      where: {
-        category: {
-          in: categories.map(c => c.category) // usamos la propiedad 'category' definida en el objeto
-        }
-      },
-      select: {
-        id: true,
-        imageLeft: true,
-        imageRight: true,
-        name: true,
-        description: true,
-        price: true,
-        category: true
-      },
-      orderBy: { createdAt: 'asc' } // Se ordena por 'name' en lugar de 'createdAt'
-    });
+  const dbCategories = await prisma.category.findMany({
+  where: {
+      status:     "AVAILABLE",
+  },
+  select: {
+    id:               true,
+    name:             true,
+    shortDescription: true,
+    longDescription:  true
+  }
+});
 
-    // Agrupar productos por categoría
-    const productsGrouped = products.reduce((acc, product) => {
-      const categoryKey = product.category;
-      if (!acc[categoryKey]) {
-        acc[categoryKey] = [];
-      }
-      acc[categoryKey].push(product);
-      return acc;
-    }, {});
+const products = await prisma.product.findMany({
+  where: {
+    status:     "AVAILABLE",
+    categoryId: { in: dbCategories.map(c => c.id) }
+  },
+  select: {
+    id:          true,
+    imageLeft:   true,
+    imageRight:  true,
+    name:        true,
+    description: true,
+    price:       true,
+    categoryId:  true
+  },
+  orderBy: { createdAt: "asc" }
+});
+// 1) agrupar productos por categoría
+const grouped = products.reduce((acc, prod) => {
+  (acc[prod.categoryId] ??= []).push(prod);
+  return acc;
+}, {});
 
-    // Construir la estructura del menú: solo se muestran las categorías que tienen productos
-    const menu = categories
-      .filter(category => productsGrouped[category.category] && productsGrouped[category.category].length > 0)
-      .map(category => ({
-        category: category.category,
-        shortDescription: category.shortDescription,
-        longDescription: category.longDescription,
-        items: productsGrouped[category.category].map(product => ({
-          ...product,
-          // Aquí se puede aplicar alguna transformación si se requiriera
-          imageLeft: product.imageLeft,
-          imageRight: product.imageRight || undefined
-        }))
-      }));
+// 2) construir array final
 
-    res.json(menu);
+const menu = dbCategories
+  .map(cat => ({
+    
+    category:         cat.name,
+    shortDescription: cat.shortDescription,
+    longDescription:  cat.longDescription,
+    items: (grouped[cat.id] || []).map(p => ({
+      id:         p.id,
+      imageLeft:  p.imageLeft,
+      imageRight: p.imageRight || undefined,
+      name:       p.name,
+      description:p.description,
+      price:      p.price
+    }))
+  }))
+  .filter(cat => cat.items.length > 0);
+
+return res.json(menu);
+
   } catch (error) {
     console.error('Error fetching menu:', error);
-    res.status(500).json({ error: 'Error obteniendo el menú' });
+    res.status(500).json({ message: 'Error to get Menu' });
   } finally {
     await prisma.$disconnect();
   }

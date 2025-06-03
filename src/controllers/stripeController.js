@@ -23,7 +23,7 @@ exports.createpaymentStripe = async (req, res) => {
     } catch (error) {
       console.error("Error en Stripe:", error);
       res.status(400).json({ 
-        message: error.message || "Error en el pago" // Envía el mensaje de error de Stripe
+        message: error.message || "Error payment" // Envía el mensaje de error de Stripe
       });
     }
   };

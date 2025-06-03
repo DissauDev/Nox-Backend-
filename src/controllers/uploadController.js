@@ -7,7 +7,7 @@ exports.getImages = (req, res) => {
   fs.readdir(uploadsDir, (err, files) => {
     if (err) {
       console.log(err);
-      return res.status(500).json({ error: 'Error al leer las imágenes.' });
+      return res.status(500).json({ message: 'Error to get images' });
       
     }
     // Genera un arreglo con la información de cada imagen
@@ -26,11 +26,11 @@ exports.getImageDetails = (req, res) => {
 
   fs.access(imagePath, fs.constants.F_OK, (err) => {
     if (err) {
-      return res.status(404).json({ error: 'Imagen no encontrada.' });
+      return res.status(404).json({ message: 'Imagen not found' });
     }
     fs.stat(imagePath, (err, stats) => {
       if (err) {
-        return res.status(500).json({ error: 'Error al obtener detalles de la imagen.' });
+        return res.status(500).json({ message: 'Error to get details' });
       }
       res.json({
         filename,
@@ -45,11 +45,11 @@ exports.getImageDetails = (req, res) => {
 // Controlador para subir una imagen. Multer maneja el guardado físico.
 exports.uploadImage = (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No se ha subido ningún archivo.' });
+    return res.status(400).json({ message: 'empty field' });
   }
   const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
   res.status(201).json({
-    message: 'Imagen subida correctamente.',
+    message: 'Image upload',
     image: {
       filename: req.file.filename,
       url: imageUrl
@@ -63,9 +63,9 @@ exports.deleteImage = (req, res) => {
   const imagePath = path.join(__dirname, '../../uploads', filename);
   fs.unlink(imagePath, (err) => {
     if (err) {
-      return res.status(404).json({ error: 'Imagen no encontrada o error al eliminarla.' });
+      return res.status(404).json({ message: 'Imagen not found' });
     }
-    res.json({ message: 'Imagen eliminada correctamente.' });
+    res.json({ message: 'Image Delete correctly' });
   });
 };
 
@@ -75,19 +75,19 @@ exports.updateImage = (req, res) => {
 
   fs.access(oldImagePath, fs.constants.F_OK, (err) => {
     if (err) {
-      return res.status(404).json({ error: 'Imagen no encontrada.' });
+      return res.status(404).json({ message: 'Image not found' });
     }
     if (!req.file) {
-      return res.status(400).json({ error: 'No se ha subido ningún archivo para actualizar.' });
+      return res.status(400).json({ message: 'Empty  field' });
     }
     // Elimina la imagen antigua
     fs.unlink(oldImagePath, (err) => {
       if (err) {
-        return res.status(500).json({ error: 'Error al eliminar la imagen anterior.' });
+        return res.status(500).json({ message: 'Error to delete' });
       }
       const newImageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
       res.json({
-        message: 'Imagen actualizada correctamente.',
+        message: 'Image update .',
         image: {
           filename: req.file.filename,
           url: newImageUrl

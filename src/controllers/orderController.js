@@ -4,6 +4,17 @@ const { PrismaClient } = require('@prisma/client');
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const prisma = new PrismaClient();
 
+const ALLOWED_STATUSES = [
+  "PENDING",
+  "PAID",
+  "PROCESSING",
+  "READY_FOR_PICKUP",
+  "OUT_FOR_DELIVERY",
+  "COMPLETED",
+  "CANCELLED",
+  "REFUNDED",
+  "FAILED",
+];
 
 // Función para generar orden tipo ORD-XXXX
 const generateOrderNumber = () => {
@@ -26,93 +37,185 @@ const generateUniqueOrderNumber = async () => {
 };
 
 const createOrder = async (req, res) => {
-  const { items, amount, customerEmail, paymentMethodId } = req.body;
 
-  if (!items || !amount || !customerEmail || !paymentMethodId) {
-    return res.status(400).json({ success: false, message: 'Faltan datos requeridos.' });
+  const { items, amount, customerEmail,userId, paymentMethodId,customerPhone,customerAddress, subtotal, specifications, customerName } = req.body;
+
+  if (!items || !amount || !customerEmail || !paymentMethodId || !customerPhone || !customerAddress || !subtotal || !customerName  ) {
+    
+    return res.status(400).json({ success: false, message: 'Required data is missing.' });
   }
 
-  let order;
-
   try {
-    // Generar un número de orden único
     const orderNumber = await generateUniqueOrderNumber();
-
-    // Crear pago con Stripe
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Stripe usa centavos
+      amount: Math.round(amount * 100),
       currency: 'usd',
       payment_method: paymentMethodId,
       confirm: true,
-      automatic_payment_methods: {
-        enabled: true,
-        allow_redirects: 'never', // 👈 ESTA LÍNEA es la clave
-      },
-      metadata: {
-        orderNumber,
-        customerEmail
-      }
+      automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
+      metadata: { orderNumber, customerEmail }
     });
 
-  
-    // Crear la orden en la base de datos
-    order = await prisma.order.create({
+    // Validar existencia de cada producto
+    for (const item of items) {
+      const prod = await prisma.product.findUnique({  where: { id: item.productId } });
+      if (!prod) {
+      
+        return res.status(400).json({
+          success: false,
+          message: `Product not found: ${item.productId}`
+        });
+      }
+    }
+
+    const order = await prisma.order.create({
       data: {
         orderNumber,
-        status: 'PAID', // En este ejemplo, el pago fue confirmado
-        subtotal: amount,
-        totalAmount: amount + (amount * 20 / 100),  // Ejemplo: añade 20% de recargo o impuesto
-        paymentMethod: "Stripe",                  // Campo requerido en el modelo
+        status: 'PAID',
+        subtotal: subtotal,
+        totalAmount: amount , 
+        paymentMethod: "Stripe",
         stripePaymentIntentId: paymentIntent.id,
-        // Puedes agregar información adicional del cliente, si la tienes:
-        customerName: "Cliente Invitado",         // Valor por defecto; modifícalo según necesidad
+        customerName,
         customerEmail,
-        customerPhone: "",                          // Asigna valor o cadena vacía si no se envía
-        customerAddress: "",                        // Igual que arriba
+        specifications,
+        customerPhone,
+        customerAddress,
+        userId,
+        // ← Aquí la clave ↓
         items: {
           create: items.map(item => ({
-            productId: item.productId,
+           product: { connect: { id: item.productId } },
             quantity: item.quantity,
             price: item.price,
-            options: item.options || null,
-            specifications: item.specifications || null,
+            chosenOptions: item.options ?? null,
+          // specifications: item.specifications ?? null,
           }))
         }
       },
-      include: {
-        items: true,
-      }
+      include: { items: true }
     });
-
-    return res.status(201).json({ success: true, order });
+    return res.status(201).json( order );
   } catch (error) {
-    console.error('Error al crear la orden:', error);
-
-    if (error.code === 'ECONNREFUSED' || error.message.includes('Can\'t reach database server')) {
-      return res.status(500).json({ success: false, message: 'No se pudo conectar a la base de datos.' });
-    }
-
-    return res.status(500).json({ success: false, message: 'Ocurrió un error al procesar la orden.', error: error.message });
+    console.error('Error to create order:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+      error: error.message
+    });
   }
 };
 
 
-// Los otros controladores (getOrders, getOrderById, getUserOrders, updateOrder, deleteOrder)
-// se mantienen igual que en la versión anterior.
 
-const getOrders = async (req, res) => {
+async function getOrders(req, res) {
+    const { status, customerType, dateFilter, page = 1, perPage = 20 ,  orderNumber,origin} = req.query;
+  const where = {};
+
+    // === Filtrar por número de orden ===
+  if (orderNumber) {
+    // uso contains para permitir búsquedas parciales, case-insensitive
+    where.orderNumber = {
+      contains: String(orderNumber),
+      mode: 'insensitive',
+    };
+  }
+
+  if (status && status !== 'all') where.status = status.toUpperCase();
+  if (customerType === 'registered') where.userId = { not: null };
+  if (customerType === 'unregistered') where.userId = null;
+
+  if (dateFilter && dateFilter !== 'all') {
+    const now = new Date();
+    
+    let since;
+    if (dateFilter === 'today') {
+      since = new Date(now.setHours(0,0,0,0));
+    } else if (dateFilter === 'this_week') {
+      since = new Date(now.getTime() - 7 * 24*60*60*1000);
+    } else if (dateFilter === 'this_month') {
+      since = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    where.createdAt = { gte: since };
+  }
   try {
-    const orders = await prisma.order.findMany({
-      include: {
-        items: true,
-        user: true,
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.status(200).json(orders);
+      // === Filtrar por Pickup vs Delivery ===
+  // (ajusta la dirección de pickup según tu negocio)
+  const PICKUP_ADDRESS = '422 E Campbell Ave, Campbell, CA 95008';
+  if (origin === 'pickup') {
+    where.customerAddress = PICKUP_ADDRESS;
+  } else if (origin === 'delivery') {
+    where.customerAddress = { not: PICKUP_ADDRESS };
+  }
+
+  const skip = (page - 1) * perPage;
+  const [orders, totalPage] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: Number(perPage),
+    }),
+    prisma.order.count({ where }),
+  ]);
+
+  res.json({ orders, totalPage, page: Number(page), perPage: Number(perPage) });
   } catch (error) {
-    console.error("Error en getOrders:", error);
-    res.status(400).json({ message: error.message || "Error al obtener las órdenes" });
+   res.status(500).json({message: "error to get orders"}) 
+  } 
+}
+
+ const updateOrderStatus = async (req, res) => {
+  const { id } = req.params;      // id de la orden (UUID)
+  const { status } = req.body;    // nuevo status
+        
+  // 1️⃣ Validar que venga un status
+  if (!status) {
+    return res.status(400).json({
+      success: false,
+      message: "Field Status is requiered.",
+    });
+  }
+
+  // 2️⃣ Validar que sea uno de los permitidos
+  if (!ALLOWED_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Status invalid. Most be : ${ALLOWED_STATUSES.join(
+        ", "
+      )}.`,
+    });
+  }
+
+  try {
+    // 3️⃣ Intentar actualizar la orden
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status },
+    });
+
+    return res.status(200).json({
+      success: true,
+      order,
+    });
+  } catch (err) {
+    console.error("Error al actualizar status de la orden:", err);
+
+    // Si no existe la orden
+    if (err.code === "P2025") {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Cualquier otro error
+    return res.status(500).json({
+      success: false,
+      message: "Fail to update status",
+      error: err.message,
+    });
   }
 };
 
@@ -122,24 +225,72 @@ const getOrderById = async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        items: true,
+        // trae al usuario
         user: true,
-      },
+        items: {
+          include: {
+            // cada OrderItem, también su Product
+            product: {
+              include: {
+                // la categoría (relación Many-to-One)
+                category: {
+                  select: { id: true, name: true }
+                },
+                // los grupos de opciones asignados al producto
+                options: {
+                  include: {
+                    group: {
+                      select: {
+                        id: true,
+                        name: true,
+                        required: true,
+                        minSelectable: true,
+                        maxSelectable: true
+                      }
+                    },
+                    values: {
+                      include: {
+                        optionValue: {
+                          select: {
+                            id: true,
+                            name: true,
+                            extraPrice: true,
+                            imageUrl: true,
+                            groupId: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
+
     if (!order) {
-      return res.status(404).json({ message: "Orden no encontrada" });
+      return res.status(404).json({ message: "Orden not found" });
     }
     res.status(200).json(order);
   } catch (error) {
     console.error("Error en getOrderById:", error);
-    res.status(400).json({ message: error.message || "Error al obtener la orden" });
+    res.status(400).json({ message: error.message || "Error to get order" });
   }
 };
 
+
 const getUserOrders = async (req, res) => {
   const { email } = req.params;
+  if (!email) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Email params is missing" });
+  }
+
   try {
-    // Se asume que el email del cliente se guarda en customerEmail
+    // Obtener todas las órdenes del usuario
     const orders = await prisma.order.findMany({
       where: { customerEmail: email },
       include: {
@@ -152,12 +303,26 @@ const getUserOrders = async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    return res.status(200).json({ success: true, orders });
+    // Calcular el resumen
+    const count = orders.length;
+    const totalSpent = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const average = count > 0 ? totalSpent / count : 0;
+
+    const resume = {
+      count,
+      totalSpent: Number(totalSpent.toFixed(2)),
+      average: Number(average.toFixed(2)),
+    };
+
+    return res.status(200).json({  orders, resume });
   } catch (error) {
     console.error("Error fetching user orders:", error);
-    return res.status(500).json({ success: false, message: "Error al obtener las órdenes" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Error to get Orders" });
   }
 };
+
 
 const updateOrder = async (req, res) => {
   const { id } = req.params;
@@ -169,7 +334,7 @@ const updateOrder = async (req, res) => {
   }
   const allowedStatuses = ["PENDING", "PAID", "PROCESSING", "READY_FOR_PICKUP", "OUT_FOR_DELIVERY", "COMPLETED", "CANCELLED", "FAILED"];
 if (!allowedStatuses.includes(status)) {
-  return res.status(400).json({ message: "El status proporcionado no es válido." });
+  return res.status(400).json({ message: "Status invalid" });
 }
 
   try {
@@ -185,28 +350,104 @@ if (!allowedStatuses.includes(status)) {
     res.status(200).json(updatedOrder);
   } catch (error) {
     console.error("Error en updateOrder:", error);
-    res.status(400).json({ message: error.message || "Error al actualizar la orden" });
+    res.status(400).json({ message: error.message || "Error to update the order" });
   }
 };
 
 const deleteOrder = async (req, res) => {
   const { id } = req.params;
   try {
-    // Primero borrar todos los OrderItems asociados a la orden
-    await prisma.orderItem.deleteMany({
-      where: { orderId: id }
-    });
+    // 1️⃣ Validamos existencia
+    const exists = await prisma.order.findUnique({ where: { id } });
+    if (!exists) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
 
-    // Luego borrar la orden
-    await prisma.order.delete({
-      where: { id },
-    });
-    res.status(200).json({ message: "Orden eliminada correctamente" });
-  } catch (error) {
-    console.error("Error en deleteOrder:", error);
-    res.status(400).json({ message: error.message || "Error al eliminar la orden" });
+    // 2️⃣ Borramos items relacionados
+    await prisma.orderItem.deleteMany({ where: { orderId: id } });
+
+    // 3️⃣ Borramos la orden
+    await prisma.order.delete({ where: { id } });
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Order deleted successfully" });
+  } catch (err) {
+    console.error("Error en deleteOrder:", err);
+
+    // Si no existía, devolvemos 404
+    if (err.code === "P2025") {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    // Para cualquier otro error devolvemos 500
+    return res
+      .status(500)
+      .json({ success: false, message: err.message || "Error deleting the order" });
   }
 };
+
+
+const refundOrder = async (req, res) => {
+  const { id } = req.params;               // id de la orden en tu base
+  const { totalAmount } = req.body;        // monto a reembolsar (en dólares), opcional
+
+  try {
+    // 1️⃣ recupera la orden de tu base
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Orden not found' });
+    }
+
+    // 2️⃣ haz el refund en Stripe
+    const refundParams = { payment_intent: order.stripePaymentIntentId };
+    if (totalAmount) {
+      // Stripe espera la clave `amount` en centavos
+      refundParams.amount = Math.round(totalAmount * 100);
+    }
+
+    let refund;
+    try {
+      refund = await stripe.refunds.create(refundParams);
+    } catch (error) {
+      // Si ya se había reembolsado esa carga, devolvemos 400 en vez de 500
+      if (error.type === 'StripeInvalidRequestError' && error.code === 'charge_already_refunded') {
+        return res.status(400).json({
+          success: false,
+          message: 'This charge has already been refunded.'
+        });
+      }
+      // cualquier otro error lo propagamos
+      throw error;
+    }
+
+    // 3️⃣ actualiza la orden en tu base
+    await prisma.order.update({
+      where: { id },
+      data: {
+        status: 'REFUNDED',
+        stripePaymentIntentId: refund.id, // guarda el id del refund
+        // ajusta el totalAmount si es un reembolso parcial
+        totalAmount: order.totalAmount - (totalAmount ?? order.totalAmount),
+      },
+    });
+
+    // 4️⃣ responde con éxito
+    return res.status(200).json({ success: true, refund });
+  } catch (err) {
+    console.error('Error al reembolsar la orden:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Error processing the refund',
+      error: err.message,
+    });
+  }
+};
+
 
 
 module.exports = {
@@ -216,179 +457,7 @@ module.exports = {
   getUserOrders,
   updateOrder,
   deleteOrder,
+  refundOrder,
+  updateOrderStatus
 };
 
-
-/* controllers/orderController.js
-const { PrismaClient } = require('@prisma/client');
-
-const stripe = require('stripe')(process.env.STRIPE_SECRET);
-const prisma = new PrismaClient();
-
-const createOrder = async (req, res) => {
-  const { amount, paymentMethodId, userId, customerName, customerEmail,
-     customerPhone, customerAddress, items } = req.body;
-
-  try {
-    // Crear la orden en estado PENDING
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: `ORD-${Date.now()}`, // Genera un número de orden único
-        status: "PENDING",
-        totalAmount: amount,
-        subtotal: amount, // Aquí podrías calcular el subtotal real
-        paymentMethod: "Stripe",
-        userId,
-        customerName,
-        customerEmail,
-        customerPhone,
-        customerAddress,
-        items: {
-          create: items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            price: item.price,
-            options: item.options || null,
-            specifications: item.specifications || null,
-          })),
-        },
-      },
-    });
-
-    // Procesar el pago con Stripe
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Stripe requiere que el monto sea en centavos
-      currency: "usd",
-      payment_method: paymentMethodId,
-      confirm: true,
-      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-    });
-
-    console.log("PaymentIntent created:", paymentIntent);
-
-    // Si el pago es exitoso, actualizar la orden a PAID
-    const updatedOrder = await prisma.order.update({
-      where: { id: order.id },
-      data: { status: "PAID" },
-    });
-
-    return res.status(201).json({ success: true, order: updatedOrder });
-  } catch (error) {
-    console.error("Error processing order:", error);
-
-    // Si hay un error en el pago, cancelar la orden
-    await prisma.order.update({
-      where: { id: order?.id },
-      data: { status: "FAILED" },
-    });
-
-    return res.status(400).json({ success: false, message: error.message || "Payment processing failed" });
-  }
-};
-
-// Obtener todas las órdenes
-const getOrders = async (req, res) => {
-  try {
-    const orders = await prisma.order.findMany({
-      include: {
-        items: true,
-        user: true,
-      },
-    });
-    res.status(200).json(orders);
-  } catch (error) {
-    console.error("Error en getOrders:", error);
-    res.status(400).json({ 
-      message: error.message || "Error al obtener las órdenes" 
-    });
-  }
-};
-
-// Obtener una orden por su ID
- const getOrderById = async (req, res) => {
-  const { id } = req.params;
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: {
-        items: true,
-        user: true,
-      },
-    });
-    if (!order) {
-      return res.status(404).json({ message: "Orden no encontrada" });
-    }
-    res.status(200).json(order);
-  } catch (error) {
-    console.error("Error en getOrderById:", error);
-    res.status(400).json({ 
-      message: error.message || "Error al obtener la orden" 
-    });
-  }
-};
-const getUserOrders = async (req, res) => {
-  const { email } = req.params;
-
-  try {
-    const orders = await prisma.order.findMany({
-      where: { email },
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" }, // Ordena las órdenes por fecha de creación
-    });
-
-    return res.status(200).json({ success: true, orders });
-  } catch (error) {
-    console.error("Error fetching user orders:", error);
-    return res.status(500).json({ success: false, message: "Failed to retrieve orders" });
-  }
-};
-
-
-// Actualizar una orden
-const updateOrder = async (req, res) => {
-  const { id } = req.params;
-  // Se espera que el body contenga los campos a actualizar
-  const orderData = req.body;
-  try {
-    const updatedOrder = await prisma.order.update({
-      where: { id },
-      data: orderData,
-      include: {
-        items: true,
-        user: true,
-      },
-    });
-    res.status(200).json(updatedOrder);
-  } catch (error) {
-    console.error("Error en updateOrder:", error);
-    res.status(400).json({ 
-      message: error.message || "Error al actualizar la orden" 
-    });
-  }
-};
-
-// Eliminar una orden
-const deleteOrder = async (req, res) => {
-  const { id } = req.params;
-  try {
-    await prisma.order.delete({
-      where: { id },
-    });
-    res.status(200).json({ message: "Orden eliminada correctamente" });
-  } catch (error) {
-    console.error("Error en deleteOrder:", error);
-    res.status(400).json({ 
-      message: error.message || "Error al eliminar la orden" 
-    });
-  }
-};
-
-module.exports = {
-deleteOrder,getOrderById,getOrders,createOrder,updateOrder,getUserOrders
-} */

@@ -7,17 +7,95 @@ generator client {
   provider = "prisma-client-js"
 }
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  password  String
-  orders    Order[]
-  role      Roles
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+/// Categorías generales (Desserts, Ice Cream, Cookies…)
+model Category {
+  id               String        @id @default(uuid())
+  name             String        @unique
+  status           ProductStatus @default(AVAILABLE)
+  onCarousel       Boolean       @default(true)
+  imageUrl         String
+  shortDescription String
+  longDescription  String
+  createdAt        DateTime      @default(now())
+  products         Product[]
 }
 
+/// Producto principal
+model Product {
+  id             String          @id @default(uuid())
+  name           String          @unique
+  price          Float
+  sellPrice      Float?
+  specifications String?
+  description    String?
+  imageLeft      Json? // { url, blurHash }
+  imageRight     Json?
+  type           ProductType     @default(REGULAR)
+  status         ProductStatus   @default(AVAILABLE)
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id])
+  options        ProductOption[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  OrderItem OrderItem[]
+}
+
+/// Relación muchos-a-muchos para asignar grupos de opciones a cada producto
+model ProductOption {
+  id        String               @id @default(uuid())
+  productId String
+  groupId   String
+  product   Product              @relation(fields: [productId], references: [id])
+  group     OptionGroup          @relation(fields: [groupId], references: [id])
+  values    ProductOptionValue[]
+}
+
+/// Valores seleccionables de un producto (cada vez que el cliente elige uno)
+model ProductOptionValue {
+  id              String        @id @default(uuid())
+  productOptionId String
+  valueId         String
+  productOption   ProductOption @relation(fields: [productOptionId], references: [id])
+  optionValue     OptionValue   @relation(fields: [valueId], references: [id])
+}
+
+/// Grupo genérico de opciones (por ejemplo “Scoop #1”, “Scoop #2”, “Toppings”)
+model OptionGroup {
+  id             String          @id @default(uuid())
+  name           String // p. ej. “Scoop Flavors”
+  required       Boolean         @default(true) // obliga a seleccionar al menos minSelectable
+  minSelectable  Int             @default(2) // 2 scoops incluidos
+  maxSelectable  Int             @default(3) // permite un 3º scoop (extraPrice)
+  productOptions ProductOption[] // relación muchos a muchos con productos
+
+  OptionValue OptionValue[]
+}
+
+model OptionValue {
+  id                 String               @id @default(uuid())
+  group              OptionGroup          @relation(fields: [groupId], references: [id])
+  groupId            String
+  name               String // “Vanilla”, “Chocolate”, …
+  extraPrice         Float                @default(0) // si es el 3º scoop aquí pondrías 1.00
+  imageUrl           String // url de la miniatura del sabor
+  description        String               @default("")
+  ProductOptionValue ProductOptionValue[]
+}
+
+/// Detalle de los items en una orden
+model OrderItem {
+  id            String  @id @default(uuid())
+  orderId       String
+  productId     String
+  quantity      Int
+  price         Float
+  chosenOptions Json?
+  order         Order   @relation(fields: [orderId], references: [id])
+  product       Product @relation(fields: [productId], references: [id])
+}
+
+/// Orden principal
 model Order {
   id                    String      @id @default(uuid())
   orderNumber           String      @unique
@@ -27,32 +105,30 @@ model Order {
   subtotal              Float
   paymentMethod         String
   stripePaymentIntentId String
-  // Customer info (guest or registered user)
-  userId                String?     @map("user_id")
+  userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
   customerName          String
   customerEmail         String
   customerPhone         String
   customerAddress       String
-
-  items OrderItem[]
-
-  @@map("orders")
+  items                 OrderItem[]
+  specifications        String?     @default("")
 }
 
-model OrderItem {
-  id        String  @id @default(uuid())
-  orderId   String  @map("order_id")
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId String  @map("product_id")
-  product   Product @relation(fields: [productId], references: [id])
-  quantity  Int
-  price     Float
-
-  options        Json? // Array de ProductOption serializado
-  specifications String?
-
-  @@map("order_items")
+/// Usuario
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  name                 String?
+  subscribeEmails      Boolean   @default(false)
+  password             String
+  role                 Roles
+  orders               Order[]
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  passwordResetToken   String? // guardará el hash del token temporal
+  passwordResetExpires DateTime? // marca cuándo vence ese token
+  refreshToken         String? // guardará el token de refresco activo
 }
 
 enum ProductType {
@@ -66,26 +142,6 @@ enum ProductStatus {
   OUT_OF_STOCK
 }
 
-model Product {
-  id             String        @id @default(uuid())
-  name           String        @unique
-  price          Float
-  sellPrice      Float?
-  options        Json? // Array de ProductOption serializado
-  specifications String?
-  orders         OrderItem[]
-  category       String
-  imageLeft      Json? // Objeto: { url: string, blurHash: string }
-  imageRight     Json? // Objeto opcional: { url: string, blurHash: string }
-  description    String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  type           ProductType   @default(REGULAR)
-  status         ProductStatus @default(AVAILABLE)
-
-  @@map("products")
-}
-
 model Page {
   id          Int      @id @default(autoincrement())
   title       String
@@ -94,18 +150,8 @@ model Page {
   isPublished Boolean  @default(false) // opcional para drafts
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  author      String?
 }
-
-/**
- * model Page {
- * id        Int      @id @default(autoincrement())
- * title     String
- * slug      String   @unique
- * layout    Json
- * createdAt DateTime @default(now())
- * updatedAt DateTime @updatedAt
- * }
- */
 
 enum OrderStatus {
   PENDING
@@ -115,6 +161,7 @@ enum OrderStatus {
   OUT_FOR_DELIVERY
   COMPLETED
   CANCELLED
+  REFUNDED
   FAILED
 }
 
@@ -122,4 +169,34 @@ enum Roles {
   USER
   ADMIN
   EMPLOYEE
+}
+
+enum CouponType {
+  PERCENTAGE
+  AMOUNT
+}
+
+model Coupon {
+  id            String     @id @default(uuid())
+  code          String     @unique // e.g. "SUMMER25"
+  type          CouponType // PERCENTAGE o AMOUNT
+  discountValue Float // 25 (porcentaje) o 10.50 (monto)
+  expiresAt     DateTime? // si es null, no expira automáticamente
+  isLimited     Boolean    @default(false) // si false, usageLimit e usageCount se ignoran
+  usageLimit    Int? // máximo de usos en total
+  usageCount    Int        @default(0) // cuántas veces se ha canjeado
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  /// (Opcional) Relación con redenciones individuales:
+  redemptions CouponRedemption[]
+}
+
+model CouponRedemption {
+  id         String   @id @default(uuid())
+  coupon     Coupon   @relation(fields: [couponId], references: [id])
+  couponId   String
+  userId     String? // si lo limitas por usuario
+  orderId    String? // si lo asocias a una orden concreta
+  redeemedAt DateTime @default(now())
 }
