@@ -53,7 +53,10 @@ const menu = dbCategories
       imageRight: p.imageRight || undefined,
       name:       p.name,
       description:p.description,
-      price:      p.price
+      price:      p.price,
+      sellPrice:  p.sellPrice,
+      status:     p.status,
+      category:   cat.name
     }))
   }))
   .filter(cat => cat.items.length > 0);
