@@ -455,11 +455,39 @@ const forgotPassword = async (req, res) => {
 
   // 3) Envía email con la URL
   const resetURL = `${process.env.FRONT_URL}/forgot-password?token=${resetToken}`;
-  await sendEmail({
-    to: user.email,
-    subject: "Password Reset",
-    html: `Click here to reset your password: <a href="${resetURL}">${resetURL}</a>`
-  });
+await sendEmail({
+  to: user.email,
+  subject: "Reset Your Password - Nox Cookie Bar",
+  html: `
+  <div style="background-color: #FDF9F3; padding: 40px; font-family: Arial, sans-serif; color: #4b2e61;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+      <h2 style="color: #4b2e61;">Reset your password</h2>
+      <p style="font-size: 16px; line-height: 1.6;">
+        Hello <strong>${user.name || user.email}</strong>,
+      </p>
+      <p style="font-size: 16px; line-height: 1.6;">
+        We received a request to reset your password. If you didn’t request this, please ignore this email.
+      </p>
+      <p style="font-size: 16px; line-height: 1.6;">
+        Otherwise, click the button below to choose a new password:
+      </p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetURL}" style="background-color: #4b2e61; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          Reset Password
+        </a>
+      </div>
+      <p style="font-size: 14px; color: #777;">
+        This link will expire in 1 hour. If you have any questions or need assistance, please contact our support team.
+      </p>
+      <p style="font-size: 14px; color: #777; margin-top: 40px;">
+        Thank you,<br/>
+        The Nox Cookie Bar Team
+      </p>
+    </div>
+  </div>
+  `
+});
+
 
   res.status(200).json({ message: 'Email Send' });
   } catch (error) {
