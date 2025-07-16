@@ -38,22 +38,41 @@ const generateUniqueOrderNumber = async () => {
 
 const createOrder = async (req, res) => {
 
-  const { items, amount, customerEmail,userId, paymentMethodId,customerPhone,customerAddress, subtotal, specifications, customerName } = req.body;
+  const { items, amount, customerEmail, customerLastname, userId,
+        billingState,
+        billingCity, paymentMethodId,customerPhone,customerAddress, subtotal, specifications, customerName } = req.body;
 
-  if (!items || !amount || !customerEmail || !paymentMethodId || !customerPhone || !customerAddress || !subtotal || !customerName  ) {
+  if (!items || !amount || !customerEmail || !paymentMethodId || !customerPhone 
+    || !customerAddress || !subtotal || !customerName ||!customerLastname ||!billingCity ||
+     !billingState ) {
     
     return res.status(400).json({ success: false, message: 'Required data is missing.' });
   }
 
   try {
     const orderNumber = await generateUniqueOrderNumber();
+    
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: 'usd',
       payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      metadata: { orderNumber, customerEmail }
+      metadata: { orderNumber, customerEmail },
+       payment_method_options: {
+    card: {
+      request_three_d_secure: 'automatic',
+    },
+  },
+    shipping: {
+    name: `${customerName} ${customerLastname}`,
+    address: {
+      line1: customerAddress,
+      city: billingCity,
+      state: billingState,
+      country: 'US',
+    },
+    }
     });
 
     // Validar existencia de cada producto
@@ -81,8 +100,11 @@ const createOrder = async (req, res) => {
         specifications,
         customerPhone,
         customerAddress,
+        customerLastname,
+        billingState,
+        billingCity,
         userId,
-        // ← Aquí la clave ↓
+      
         items: {
           create: items.map(item => ({
            product: { connect: { id: item.productId } },

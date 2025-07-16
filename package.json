@@ -6,6 +6,9 @@
     "test": "nodemon node index.js",
     "start": "nodemon index.js"
   },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

@@ -384,31 +384,36 @@ const getCustomers = async (req, res) => {
 
 const getUsersStats = async (req, res) => {
   try {
-    // 1) Número total de usuarios
-    const totalUsers = await prisma.user.count({ where: { role: 'USER' } });
+    // 1) Contar todos los usuarios únicos que han hecho pedidos (clientes reales)
+    const distinctCustomers = await prisma.order.findMany({
+      distinct: ['userId'],
+      select: { userId: true }
+    });
+    const totalCustomers = distinctCustomers.length;
 
-    // 2) Agregado de todos los pedidos de esos usuarios
+    // 2) Agregar todos los pedidos (de todos los roles)
     const agg = await prisma.order.aggregate({
-      where: { user: { role: 'USER' } },
       _count: { _all: true },
       _sum:   { totalAmount: true }
     });
 
     const totalOrders      = agg._count._all;
     const totalRevenue     = agg._sum.totalAmount || 0;
-    const avgOrdersPerUser = totalUsers ? totalOrders / totalUsers : 0;
-    const avgLifetimeSpend = totalUsers ? totalRevenue / totalUsers : 0;
+    const avgOrdersPerUser = totalCustomers ? totalOrders / totalCustomers : 0;
+    const avgLifetimeSpend = totalCustomers ? totalRevenue / totalCustomers : 0;
     const avgOrderValue    = totalOrders  ? totalRevenue  / totalOrders  : 0;
 
     res.json({
-      totalUsers,
-      averageOrdersPerUser: avgOrdersPerUser,
+      totalCustomers,
+      totalOrders,
+      totalRevenue,
+      averageOrdersPerCustomer: avgOrdersPerUser,
       averageLifetimeSpend: avgLifetimeSpend,
-      averageOrderValue:    avgOrderValue
+      averageOrderValue:avgOrderValue
     });
   } catch (error) {
     console.error(error);
-       res.status(500).json({ message: "Error server" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 

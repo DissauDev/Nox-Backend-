@@ -1,0 +1,11 @@
+-- CreateTable
+CREATE TABLE "StoreConfig" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "taxEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "taxPercent" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "taxFixed" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "StoreConfig_pkey" PRIMARY KEY ("id")
+);

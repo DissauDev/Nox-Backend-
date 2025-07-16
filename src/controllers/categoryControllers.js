@@ -31,8 +31,7 @@ const validateCategoryData = ({ name, imageUrl, onCarousel, shortDescription, lo
 };
 
 const createCategory = async (req, res) => {
-  // 1) validamos entrada
-  console.log(req.body);
+
   const validationErrors = validateCategoryData(req.body);
   if (validationErrors.length) {
     return res.status(400).json({ message: validationErrors });
@@ -45,11 +44,12 @@ const createCategory = async (req, res) => {
       onCarousel = true,
       shortDescription,
       longDescription,
-      status
+      status,
+      sortOrder
     } = req.body;
 
     const newCategory = await prisma.category.create({
-      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status }
+      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status,sortOrder }
     });
 
     return res.status(201).json(newCategory);
@@ -93,12 +93,13 @@ const updateCategory = async (req, res) => {
       onCarousel,
       shortDescription,
       longDescription,
-      status
+      status,
+      sortOrder
     } = req.body;
 
     const updated = await prisma.category.update({
       where: { id },
-      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status }
+      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status,sortOrder }
     });
 
     return res.json(updated);
@@ -141,6 +142,10 @@ const getCategories = async (req, res) => {
         status: 'AVAILABLE',
         onCarousel: true,
       },
+             orderBy: [
+  { sortOrder: 'asc' },
+  { name: 'asc' }
+]
     });
     res.json(categories);
   } catch (error) {
@@ -184,7 +189,10 @@ async function getCategoriesAvailable(req, res) {
   try {
     const cats = await prisma.category.findMany({
       where: { status: "AVAILABLE" },
-      orderBy: { name: 'asc' },
+                orderBy: [
+  { sortOrder: 'asc' },
+  { name: 'asc' }
+]
     });
     res.json(cats);
   } catch (err) {

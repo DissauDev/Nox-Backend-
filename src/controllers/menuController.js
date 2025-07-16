@@ -8,7 +8,12 @@ const { categories } = require('../utils/Categorys');
   const dbCategories = await prisma.category.findMany({
   where: {
       status:     "AVAILABLE",
+ 
   },
+         orderBy: [
+  { sortOrder: 'asc' },
+  { name: 'asc' }
+],
   select: {
     id:               true,
     name:             true,
@@ -22,42 +27,59 @@ const products = await prisma.product.findMany({
     status:     "AVAILABLE",
     categoryId: { in: dbCategories.map(c => c.id) }
   },
-  select: {
-    id:          true,
-    imageLeft:   true,
-    imageRight:  true,
-    name:        true,
-    description: true,
-    price:       true,
-    categoryId:  true
-  },
+include: {
+  options: {
+    include: {
+      group: true
+    }
+  }
+},
+
   orderBy: { createdAt: "asc" }
 });
 // 1) agrupar productos por categoría
+
+
+// 2) construir array final
 const grouped = products.reduce((acc, prod) => {
   (acc[prod.categoryId] ??= []).push(prod);
   return acc;
 }, {});
 
-// 2) construir array final
-
 const menu = dbCategories
   .map(cat => ({
-    
     category:         cat.name,
     shortDescription: cat.shortDescription,
     longDescription:  cat.longDescription,
-    items: (grouped[cat.id] || []).map(p => ({
-      id:         p.id,
-      imageLeft:  p.imageLeft,
-      imageRight: p.imageRight || undefined,
-      name:       p.name,
-      description:p.description,
-      price:      p.price,
-      sellPrice:  p.sellPrice,
-      status:     p.status,
-      category:   cat.name
-    }))
+    items: (grouped[cat.id] || []).map(p => {
+      const parsedOptions = p.options.map(opt => {
+        const group = opt.group;
+        return {
+          id:            group.id,
+          name:          group.name,
+          required:      group.required,
+          minSelectable: group.minSelectable,
+          maxSelectable: group.maxSelectable,
+     
+        };
+      });
+
+      const hasRequiredOptions = parsedOptions.some(opt => opt.required);
+
+      return {
+        id:          p.id,
+        imageLeft:   p.imageLeft,
+        imageRight:  p.imageRight || undefined,
+        name:        p.name,
+        description: p.description,
+        price:       p.price,
+        sellPrice:   p.sellPrice,
+        status:      p.status,
+        category:    cat.name,
+        options:     parsedOptions,
+        hasRequiredOptions
+      };
+    })
   }))
   .filter(cat => cat.items.length > 0);
 

@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
-const rateLimit = require('express-rate-limit');
 const productRoutes = require('./src/routes/productRoutes');
 const uploadRoutes = require('./src/routes/uploadRoutes');
 const menuRoutes = require('./src/routes/menuRoutes');
@@ -14,6 +13,7 @@ const pageRoutes =  require("./src/routes/pageRoutes");
 const categoriesRoutes =  require("./src/routes/categoriesRoutes");
 const optionGroupRoutes = require('./src/routes/optionGroupRoutes');
 const analiticsRoutes = require('./src/routes/analiticsRoutes');
+const settingRoutes = require('./src/routes/settingRoutes');
 const couponRoutes = require('./src/routes/couponRoutes');
 const path = require('path');
 const app = express();
@@ -25,12 +25,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 // Prevención de ataques de fuerza bruta
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 100, 
-  message: 'Demasiadas solicitudes. Inténtalo más tarde.'
-});
-app.use(limiter);
+
 
 // Rutas
 
@@ -54,6 +49,7 @@ app.use("/api", pageRoutes);
 app.use("/api", categoriesRoutes);
 app.use("/api", optionGroupRoutes);
 app.use("/api", analiticsRoutes);
+app.use("/api", settingRoutes);
 app.use("/api", couponRoutes);
 // Middleware de manejo de errores
 app.use(errorHandler);

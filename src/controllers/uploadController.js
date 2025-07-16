@@ -43,18 +43,44 @@ exports.getImageDetails = (req, res) => {
 };
 
 // Controlador para subir una imagen. Multer maneja el guardado físico.
-exports.uploadImage = (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'empty field' });
-  }
-  const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-  res.status(201).json({
-    message: 'Image upload',
-    image: {
-      filename: req.file.filename,
-      url: imageUrl
+exports.uploadImage = async (req, res) => {
+   console.log("<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+  console.log(req);
+  try {
+    // 1) ¿Llegó el archivo?
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file provided.' });
     }
-  });
+
+    // 2) Verificar tipo MIME
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(415).json({ message: 'Unsupported file type.' });
+    }
+
+    // 3) Verificar tamaño (en caso de que Multer no lo haya bloqueado)
+    const maxSize = 5 * 1024 * 1024; // 5 MB
+    if (req.file.size > maxSize) {
+      return res.status(413).json({ message: 'File too large. Max 5 MB.' });
+    }
+
+    // 4) Todo OK: construir URL y responder
+    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    return res.status(201).json({
+      message: 'Image uploaded successfully.',
+      image: {
+        filename: req.file.filename,
+        url: imageUrl,
+      },
+    });
+  } catch (err) {
+    // 5) Errores de Multer o propios
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ message: 'File too large. Max 5 MB.' });
+    }
+    console.error('Upload error:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
 };
 
 // Elimina una imagen dado su nombre de archivo.
