@@ -8,7 +8,8 @@ const {
     getProductById,
     getProductSuggestions,
     deleteProduct,
-    updateProductStatus
+    updateProductStatus,
+ 
   } = require('../controllers/productsController');
   const {
   setProductOptions,
@@ -28,3 +29,4 @@ router.get('/products/:id/options',    getProductOptions);
 router.get("/products/:id/suggestions", getProductSuggestions);
 
 module.exports = router;
+ 

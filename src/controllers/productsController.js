@@ -19,6 +19,9 @@ async function createProduct(req, res) {
       imageRightUrl,
       type,
       status,
+        isOptionItem,            // boolean (checkbox)
+      packOptionSurcharge, 
+      packMaxItems
     } = req.body;
 
     // 1) Unicidad por name
@@ -74,6 +77,9 @@ async function createProduct(req, res) {
       imageRight: imageRight || undefined,
       type: type || undefined,
       status: status || undefined,
+      isOptionItem: isOptionItem || false,
+      packOptionSurcharge: packOptionSurcharge || 0,
+      packMaxItems
     };
 
   // 6) Creación en BD (sin options)
@@ -142,6 +148,9 @@ async function updateProduct(req, res) {
       imageRightUrl,
       type,
       status,
+        isOptionItem,       
+      packOptionSurcharge,
+      packMaxItems 
     } = req.body;
 
     const updateData = {};
@@ -199,6 +208,9 @@ async function updateProduct(req, res) {
     if (type) updateData.type = type;
     if (status) updateData.status = status;
 
+    if(isOptionItem) updateData.isOptionItem = isOptionItem;
+    if(packOptionSurcharge) updateData.packOptionSurcharge = packOptionSurcharge;
+ if(packMaxItems) updateData.packMaxItems = packMaxItems;
     const updated = await prisma.product.update({
       where: { id },
       data: updateData,
@@ -234,6 +246,7 @@ async function getProductById(req, res) {
                 required: true,
                 minSelectable: true,
                 maxSelectable: true,
+                showImages: true,
                 // aquí traemos los valores posibles del grupo
                 OptionValue: {
                   select: {
@@ -367,10 +380,13 @@ async function getProductSuggestions(req, res) {
   }
 }
 
+
+
 module.exports = {
   createProduct,
   getAllProducts,
   updateProduct,
+
   deleteProduct,
   getProductById,
   updateProductStatus,

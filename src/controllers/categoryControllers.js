@@ -67,6 +67,7 @@ const updateCategory = async (req, res) => {
     return res.status(400).json({ message: 'Id params is Required' });
   }
 
+  
   // 1) validamos entrada (permitimos omitir algunos campos si no van a cambiar)
   const validationErrors = validateCategoryData({
     name: req.body.name ?? '', 

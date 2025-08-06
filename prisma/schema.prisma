@@ -38,8 +38,12 @@ model Product {
   options        ProductOption[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  OrderItem      OrderItem[]
 
-  OrderItem OrderItem[]
+  OptionValue         OptionValue[]
+  isOptionItem        Boolean       @default(false) // checkbox “usar como opción”
+  packOptionSurcharge Float         @default(0) // “precio para la caja”
+  packMaxItems        Int?
 }
 
 /// Relación muchos-a-muchos para asignar grupos de opciones a cada producto
@@ -69,19 +73,25 @@ model OptionGroup {
   minSelectable  Int             @default(2) // 2 scoops incluidos
   maxSelectable  Int             @default(3) // permite un 3º scoop (extraPrice)
   productOptions ProductOption[] // relación muchos a muchos con productos
-
-  OptionValue OptionValue[]
+  isAvailable    Boolean         @default(true)
+  OptionValue    OptionValue[]
+  showImages     Boolean         @default(true) // ✅ NUEVO CAMPO
 }
 
 model OptionValue {
   id                 String               @id @default(uuid())
   group              OptionGroup          @relation(fields: [groupId], references: [id])
   groupId            String
-  name               String // “Vanilla”, “Chocolate”, …
-  extraPrice         Float                @default(0) // si es el 3º scoop aquí pondrías 1.00
-  imageUrl           String // url de la miniatura del sabor
+  name               String
+  extraPrice         Float                @default(0)
+  imageUrl           String?
   description        String               @default("")
   ProductOptionValue ProductOptionValue[]
+  isAvailable        Boolean              @default(true)
+
+  /// NUEVO: relación opcional con producto real
+  productRef   Product? @relation(fields: [productRefId], references: [id])
+  productRefId String? // Si no es null, esta opción representa un producto existente
 }
 
 /// Detalle de los items en una orden

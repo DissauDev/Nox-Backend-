@@ -1,19 +1,100 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// --- OptionGroups CRUD ---
 async function createOptionGroup(req, res) {
-  try {
-    const { name, required = false, maxSelectable = null } = req.body;
-    const group = await prisma.optionGroup.create({
-      data: { name, required, maxSelectable },
+ 
+    const { name, required = false,  showImages, optionGroupIdToClone, maxSelectable = null , categoryId, minSelectable} = req.body;
+    
+    if(categoryId !== null) {
+       try {
+
+// 1) Buscar los productos activos en esa categoría
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      include: {
+        products: {
+          where: { status: 'AVAILABLE', isOptionItem: true,  },
+        },
+      },
+    });
+
+    if (!category || category.products.length === 0) {
+      return res.status(404).json({ message: 'No products found in this category' });
+    }
+        // 2) Crear OptionGroup
+    const optionGroup = await prisma.optionGroup.create({
+      data: {
+         showImages: showImages ?? required, // ✅ Asignar showImages
+        name: name || category.name,
+        required: required ?? true,
+        minSelectable: minSelectable ?? 1,
+        maxSelectable: maxSelectable ?? category.products.length,
+        OptionValue: {
+          create: category.products.map((p) => ({
+            name: p.name,
+             extraPrice: p.packOptionSurcharge ?? 0,  
+            imageUrl: p.imageLeft?.url ?? '', // suponiendo formato {url, blurHash}
+            description: p.description ?? '',
+            productRefId: p.id, // se enlaza al producto real
+          })),
+        },
+      },
+    });
+       res.status(201).json(optionGroup);
+    }
+     catch (err) {
+    console.error('Error al crear OptionGroup desde categoría:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+    }
+      // 🔁 2. Clonar desde otro OptionGroup
+    if (optionGroupIdToClone !== null) {
+      const originalGroup = await prisma.optionGroup.findUnique({
+        where: { id: optionGroupIdToClone },
+        include: { OptionValue: true },
+      });
+
+      if (!originalGroup || originalGroup.OptionValue.length === 0) {
+        return res
+          .status(404)
+          .json({ message: 'No option values found in original group' });
+      }
+
+      const newGroup = await prisma.optionGroup.create({
+        data: {
+          name: name || `${originalGroup.name} Copy`,
+          required,
+           showImages: showImages ?? required, // ✅ Asignar showImages
+          minSelectable: minSelectable ?? originalGroup.minSelectable,
+          maxSelectable: maxSelectable ?? originalGroup.maxSelectable,
+          OptionValue: {
+            create: originalGroup.OptionValue.map((ov) => ({
+              name: ov.name,
+              extraPrice: ov.extraPrice ?? 0,
+              imageUrl: ov.imageUrl ?? '',
+              description: ov.description ?? '',
+              productRefId: ov.productRefId, // mantener vínculo si aplica
+            })),
+          },
+        },
+      });
+
+      return res.status(201).json(newGroup);
+    }
+   
+      try {
+         const group = await prisma.optionGroup.create({
+      data: { name, required, maxSelectable, showImages: showImages ?? required, },
     });
     res.status(201).json(group);
-  } catch (err) {
+      } catch (err) {
     console.error('Error creating option group:', err);
    res.status(500).json({ message: 'Internal server error' });
   }
-}
+    
+   
+  }
+
 
 async function getAllOptionGroups(req, res) {
   try {
@@ -154,6 +235,52 @@ async function deleteOptionValue(req, res) {
    res.status(500).json({ message: 'Internal server error' });
   }
 }
+// POST /api/options/from-category
+
+async function createGroupFromCategory(req, res) {
+  try {
+    const { categoryId, groupName, required, minSelectable, maxSelectable } = req.body;
+
+    // 1) Buscar los productos activos en esa categoría
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      include: {
+        products: {
+          where: { status: 'AVAILABLE' },
+        },
+      },
+    });
+
+    if (!category || category.products.length === 0) {
+      return res.status(404).json({ message: 'No products found in this category' });
+    }
+
+    // 2) Crear OptionGroup
+    const optionGroup = await prisma.optionGroup.create({
+      data: {
+        name: groupName || category.name,
+        required: required ?? true,
+        minSelectable: minSelectable ?? 1,
+        maxSelectable: maxSelectable ?? category.products.length,
+        OptionValue: {
+          create: category.products.map((p) => ({
+            name: p.name,
+            extraPrice: 0,
+            imageUrl: p.imageLeft?.url ?? '', // suponiendo formato {url, blurHash}
+            description: p.description ?? '',
+            productRefId: p.id, // se enlaza al producto real
+          })),
+        },
+      },
+    });
+
+    return res.status(201).json(optionGroup);
+  } catch (err) {
+    console.error('Error al crear OptionGroup desde categoría:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 
 module.exports = {
   createOptionGroup,
@@ -166,4 +293,5 @@ module.exports = {
   getOptionValueById,
   updateOptionValue,
   deleteOptionValue,
+  createGroupFromCategory
 };
