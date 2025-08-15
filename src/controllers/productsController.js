@@ -1,6 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const {categories} = require('../utils/Categorys');
+
 const {generateImageData} = require('../middlewares/generateImageData')
 
 
@@ -24,6 +24,7 @@ async function createProduct(req, res) {
       packMaxItems
     } = req.body;
 
+    
     // 1) Unicidad por name
     const existing = await prisma.product.findUnique({ where: { name } });
     if (existing) {
@@ -35,6 +36,7 @@ async function createProduct(req, res) {
     if (!cat) {
       return res.status(400).json({ message: 'Invalid Category' });
     }
+
 
     // 3) Procesar imágenes
     const imageLeft = await generateImageData(imageLeftUrl);

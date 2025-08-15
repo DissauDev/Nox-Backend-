@@ -15,6 +15,7 @@ const optionGroupRoutes = require('./src/routes/optionGroupRoutes');
 const analiticsRoutes = require('./src/routes/analiticsRoutes');
 const settingRoutes = require('./src/routes/settingRoutes');
 const couponRoutes = require('./src/routes/couponRoutes');
+const googleSheetRoutes = require('./src/routes/googleSheetsRoutes');
 const path = require('path');
 const app = express();
 
@@ -51,6 +52,7 @@ app.use("/api", optionGroupRoutes);
 app.use("/api", analiticsRoutes);
 app.use("/api", settingRoutes);
 app.use("/api", couponRoutes);
+app.use("/api", googleSheetRoutes);
 // Middleware de manejo de errores
 app.use(errorHandler);
 
