@@ -1,41 +1,12 @@
-// controllers/orderController.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// controllers/categoryController.js  (antes estaba dentro de orderController)
+const { prisma } = require('../lib/prisma');
+const { ProductStatus } = require('@prisma/client');
+const { validateCreate, validateUpdate } = require('../utils/validators');
 
-// Helper para validación
-const validateCategoryData = ({ name, imageUrl, onCarousel, shortDescription, longDescription, avaible }) => {
-  const errors = [];
-
-  if (typeof name !== 'string' || !name.trim()) {
-    errors.push('Name is required');
-  }
-  if (typeof imageUrl !== 'string' || !imageUrl.trim()) {
-    errors.push('imageUrl is required');
-  }
-  if (onCarousel !== undefined && typeof onCarousel !== 'boolean') {
-    errors.push('The Field "onCarousel" is a boolean');
-  }
-  if (typeof shortDescription !== 'string' || !shortDescription.trim()) {
-    errors.push(' "shortDescription" is required');
-  }
-  if (typeof longDescription !== 'string' || !longDescription.trim()) {
-    errors.push(' "longDescription"is required.');
-  }
-  // avaible debe coincidir con tu enum ProductStatus
-  const validStatuses = ['AVAILABLE', 'DISABLED', 'OUT_OF_STOCK'];
-  if (avaible !== undefined && !validStatuses.includes(avaible)) {
-    errors.push(`The Field "avaible" most be: ${validStatuses.join(', ')}.`);
-  }
-
-  return errors;
-};
-
-const createCategory = async (req, res) => {
-
-  const validationErrors = validateCategoryData(req.body);
-  if (validationErrors.length) {
-    return res.status(400).json({ message: validationErrors });
-  }
+// ---------- Handlers ----------
+async function createCategory(req, res) {
+  const errors = validateCreate(req.body);
+  if (errors.length) return res.status(400).json({ message: errors });
 
   try {
     const {
@@ -44,207 +15,167 @@ const createCategory = async (req, res) => {
       onCarousel = true,
       shortDescription,
       longDescription,
-      status,
-      sortOrder
+      status = ProductStatus.AVAILABLE,
+      sortOrder = 0,
     } = req.body;
 
     const newCategory = await prisma.category.create({
-      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status,sortOrder }
+      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status, sortOrder },
     });
 
     return res.status(201).json(newCategory);
   } catch (error) {
-    console.error('Error al crear categoría:', error);
+    if (error?.code === 'P2002' && error?.meta?.target?.includes('name')) {
+      return res.status(400).json({ message: 'Category name already exists' });
+    }
+    console.error('createCategory error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
-};
+}
 
-const updateCategory = async (req, res) => {
+async function updateCategory(req, res) {
   const { id } = req.params;
-
-  // 0) validamos que venga el id
-  if (!id) {
-    return res.status(400).json({ message: 'Id params is Required' });
-  }
-
-  
-  // 1) validamos entrada (permitimos omitir algunos campos si no van a cambiar)
-  const validationErrors = validateCategoryData({
-    name: req.body.name ?? '', 
-    imageUrl: req.body.imageUrl ?? '',
-    onCarousel: req.body.onCarousel,
-    shortDescription: req.body.shortDescription ?? '',
-    longDescription: req.body.longDescription ?? '',
-    status: req.body.status
-  });
-  if (validationErrors.length) {
-    return res.status(400).json({ message: validationErrors });
-  }
+  if (!id) return res.status(400).json({ message: 'Id param is required' });
+  const errors = validateUpdate(req.body);
+  if (errors.length) return res.status(400).json({ message: errors });
 
   try {
-    // 2) opcional: comprobamos que exista antes de actualizar
-    const exists = await prisma.category.findUnique({ where: { id } });
-    if (!exists) {
-      return res.status(404).json({ message: 'Category not found' });
-    }
-
-    const {
-      name,
-      imageUrl,
-      onCarousel,
-      shortDescription,
-      longDescription,
-      status,
-      sortOrder
-    } = req.body;
-
     const updated = await prisma.category.update({
       where: { id },
-      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status,sortOrder }
+      data: req.body,
     });
-
+    
     return res.json(updated);
   } catch (error) {
-    console.error('Error to update category:', error);
-    // P2025: registro no existe
-    if (error.code === 'P2025') {
+    if (error?.code === 'P2025') {
       return res.status(404).json({ message: 'Category not found' });
     }
-    return res.status(500).json({ message: 'Internal server Error' });
+    if (error?.code === 'P2002' && error?.meta?.target?.includes('name')) {
+      return res.status(400).json({ message: 'Category name already exists' });
+    }
+    console.error('updateCategory error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
-};
+}
 
-const getCategories = async (req, res) => {
+async function getCategories(req, res) {
   try {
     const { onCarousel } = req.query;
     const where = {};
-    if (onCarousel !== undefined) {
-      where.onCarousel = onCarousel === 'true';
-          const categories = await prisma.category.findMany({
+    if (typeof onCarousel !== 'undefined') where.onCarousel = onCarousel === 'true';
+
+    const categories = await prisma.category.findMany({
       where,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    res.json(categories);
-    }
-    else{
-      const categories = await prisma.category.findMany();
-         res.json(categories);
-    }
-
+    return res.json(categories);
   } catch (error) {
-    console.error('Fail to get Categories:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('getCategories error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
-};
+}
 
- const getAvailableCarouselCategories = async (req, res) => {
+async function getAvailableCarouselCategories(req, res) {
   try {
     const categories = await prisma.category.findMany({
-      where: {
-        status: 'AVAILABLE',
-        onCarousel: true,
-      },
-             orderBy: [
-  { sortOrder: 'asc' },
-  { name: 'asc' }
-]
+      where: { status: ProductStatus.AVAILABLE, onCarousel: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    res.json(categories);
+    return res.json(categories);
   } catch (error) {
-    console.error('Failed to get available carousel categories:', error);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error('getAvailableCarouselCategories error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
-};
-const getCategoryById = async (req, res) => {
+}
+
+async function getCategoryById(req, res) {
   try {
     const { id } = req.params;
-    const category = await prisma.category.findUnique({
-      where: { id }
-    });
-    if (!category) {
-      return res.status(404).json({ message: 'Category not found' });
-    }
+    const category = await prisma.category.findUnique({ where: { id } });
+    if (!category) return res.status(404).json({ message: 'Category not found' });
     return res.json(category);
   } catch (error) {
-    console.error('Error al obtener categoría:', error);
-    return res.status(500).json({ message: 'internal server Error' });
+    console.error('getCategoryById error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
-};
+}
 
-const deleteCategory = async (req, res) => {
+async function deleteCategory(req, res) {
   try {
     const { id } = req.params;
-    await prisma.category.delete({
-      where: { id }
-    });
-    res.status(204).send();
+    await prisma.category.delete({ where: { id } });
+    // 204 está bien; si prefieres consistencia con tests, puedes devolver 200 + message
+    return res.status(204).send();
   } catch (error) {
-    console.error('Error al eliminar categoría:', error);
-    if (error.code === 'P2025') {
+    if (error?.code === 'P2025') {
       return res.status(404).json({ message: 'Category not found' });
     }
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('deleteCategory error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
-};
+}
 
 async function getCategoriesAvailable(req, res) {
   try {
     const cats = await prisma.category.findMany({
-      where: { status: "AVAILABLE" },
-                orderBy: [
-  { sortOrder: 'asc' },
-  { name: 'asc' }
-]
+      where: { status: ProductStatus.AVAILABLE },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    res.json(cats);
-  } catch (err) {
-    console.error('Error fetching categories:', err);
-    res.status(500).json({ message: 'Internal server Error' });
+    return res.json(cats);
+  } catch (error) {
+    console.error('getCategoriesAvailable error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 }
 
 async function getCategoriesWithSales(req, res) {
   try {
+    // SQL parametrizado por Prisma ($queryRaw`...`)
     const categories = await prisma.$queryRaw`
       SELECT
         c.*,
-        COALESCE(s.accumulated, 0)::float AS accumulated
+        COALESCE(s.accumulated, 0)::float AS "accumulated"
       FROM "Category" AS c
       LEFT JOIN (
         SELECT
-          p."categoryId"          AS categoryId,
-          SUM(oi."price" * oi."quantity") AS accumulated
+          p."categoryId" AS "categoryId",
+          SUM(oi."price" * oi."quantity") AS "accumulated"
         FROM "Product" AS p
         JOIN "OrderItem" AS oi
           ON oi."productId" = p.id
         GROUP BY p."categoryId"
-      ) AS s
-        ON s.categoryId = c.id
-      ORDER BY c.name;
-    `
-    return res.json(categories)
+      ) AS s ON s."categoryId" = c.id
+      ORDER BY c."sortOrder" ASC, c."name" ASC;
+    `;
+    return res.json(categories);
   } catch (error) {
-    console.error('Error fetching categories with sales:', error)
-    return res.status(500).json({ message: 'Internal server error' })
+    console.error('getCategoriesWithSales error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }
 
 async function updateCategoryStatus(req, res) {
   try {
     const { id } = req.params;
-    const { status } = req.body; // debe ser "AVAILABLE", "DISABLED" o "OUT_OF_STOCK"
+    const { status } = req.body;
+    if (!Object.values(ProductStatus).includes(status)) {
+      return res.status(400).json({
+        message: `Invalid status. Use: ${Object.values(ProductStatus).join(', ')}`,
+      });
+    }
     const updated = await prisma.category.update({
       where: { id },
       data: { status },
     });
-    res.json(updated);
-  } catch (err) {
-    console.error('Error updating product status:', err);
-    res.status(500).json({ message: 'Internal server error' });
+    return res.json(updated);
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+    console.error('updateCategoryStatus error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }
-
-
-
 
 module.exports = {
   createCategory,
@@ -255,5 +186,5 @@ module.exports = {
   getCategoriesWithSales,
   getCategoriesAvailable,
   updateCategoryStatus,
-  getAvailableCarouselCategories
+  getAvailableCarouselCategories,
 };

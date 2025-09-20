@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const { prisma } = require('../lib/prisma');
 
 
 const createCoupon = async (req, res) => {
@@ -13,8 +12,7 @@ const createCoupon = async (req, res) => {
       usageLimit,     // número o string numérico
     } = req.body;
 
-  console.log('>>> Headers:', req.headers);
-  console.log('>>> Raw req.body:', req.body);
+
     // Validaciones mínimas
     if (!code || !type || discountValue == null) {
       return res.status(400).json({ message: 'Missing required fields: code, type or discountValue' });

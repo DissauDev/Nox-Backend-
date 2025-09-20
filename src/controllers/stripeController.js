@@ -1,6 +1,6 @@
 
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET);
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 
 exports.createpaymentStripe = async (req, res) => {
@@ -18,7 +18,6 @@ exports.createpaymentStripe = async (req, res) => {
         },
       });
   
-      console.log("PaymentIntent creado:", paymentIntent);
       res.status(200).json({ success: true });
     } catch (error) {
       console.error("Error en Stripe:", error);

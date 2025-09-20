@@ -1,8 +1,6 @@
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
-
+const { prisma } = require('../lib/prisma');
 // Obtener todas las páginas
-export const getPages = async (req, res) => {
+ const getPages = async (req, res) => {
   try {
     const {
       search,
@@ -68,7 +66,7 @@ export const getPages = async (req, res) => {
 };
 
 // Obtener una página por slug
-export const getPageBySlug = async (req, res) => {
+ const getPageBySlug = async (req, res) => {
   const { slug } = req.params;
 
   try {
@@ -85,7 +83,7 @@ export const getPageBySlug = async (req, res) => {
 
 
 // Crear una nueva página
-export const createPage = async (req, res) => {
+ const createPage = async (req, res) => {
   try {
     const { title, slug, layout } = req.body;
     const page = await prisma.page.create({
@@ -100,7 +98,7 @@ export const createPage = async (req, res) => {
 };
 
 // Actualizar el layout de una página
-export const updatePage = async (req, res) => {
+ const updatePage = async (req, res) => {
   try {
     const { id } = req.params;
     const { layout } = req.body;
@@ -117,7 +115,7 @@ export const updatePage = async (req, res) => {
 };
 
 // Eliminar una página
-export const deletePage = async (req, res) => {
+ const deletePage = async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.page.delete({ where: { id: Number(id) } });
@@ -128,3 +126,11 @@ export const deletePage = async (req, res) => {
   }
 
 };
+
+module.exports = {
+  deletePage,
+  updatePage,
+  createPage,
+  getPageBySlug,
+  getPages
+}

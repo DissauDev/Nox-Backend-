@@ -9,7 +9,11 @@ const {
   getAllOptionValues,
   getOptionValueById,
   updateOptionValue,
-  deleteOptionValue
+  deleteOptionValue,
+  patchOptionValueStatus,
+  bulkUpdateOptionValuesStatus,
+  bulkCloneOptionValue,
+
 } = require('../controllers/optionGroupController');
 
 // OptionGroup CRUD
@@ -17,8 +21,13 @@ router.post('/option-group',                   createOptionGroup);
 router.get('/option-group',                    getAllOptionGroups);
 router.get('/option-group/:groupId',            getOptionGroupById);
 router.put('/option-group/:groupId',            updateOptionGroup);
-router.delete('/:groupId',         deleteOptionGroup);
+router.delete('/option-group/:groupId',         deleteOptionGroup);
+// OptionValue status (uno)
+router.patch('/option-values/:valueId/status', patchOptionValueStatus);
+// OptionValue status (bulk)
+router.post('/option-values/bulk-status', bulkUpdateOptionValuesStatus);
 
+router.post('/option-values/bulk-clone', bulkCloneOptionValue);
 // OptionValue CRUD
 router.post('/option-group/:groupId/values',          createOptionValue);
 router.get('/option-group/:groupId/values',           getAllOptionValues);

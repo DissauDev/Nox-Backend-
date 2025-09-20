@@ -1,57 +1,34 @@
 
-// controllers/orderController.js
-const { PrismaClient } = require('@prisma/client');
-const stripe = require('stripe')(process.env.STRIPE_SECRET);
-const prisma = new PrismaClient();
+const {makeStripe} = require('../lib/stripe');
+const stripe = makeStripe(); // instancia única y reutilizable
+const { prisma } = require('../lib/prisma');
+const { ALLOWED_STATUSES } = require('../utils/AllowedStatus');
+const { generateUniqueOrderNumber } = require('../utils/generateOrderNumber');
 
-const ALLOWED_STATUSES = [
-  "PENDING",
-  "PAID",
-  "PROCESSING",
-  "READY_FOR_PICKUP",
-  "OUT_FOR_DELIVERY",
-  "COMPLETED",
-  "CANCELLED",
-  "REFUNDED",
-  "FAILED",
-];
-
-// Función para generar orden tipo ORD-XXXX
-const generateOrderNumber = () => {
-  const random = Math.floor(1000 + Math.random() * 9000); // 4 dígitos
-  return `ORD-${random}`;
-};
-
-// Verifica que no exista el número de orden en la DB
-const generateUniqueOrderNumber = async () => {
-  let unique = false;
-  let orderNumber;
-
-  while (!unique) {
-    orderNumber = generateOrderNumber();
-    const existing = await prisma.order.findUnique({ where: { orderNumber } });
-    if (!existing) unique = true;
-  }
-
-  return orderNumber;
-};
 
 const createOrder = async (req, res) => {
+   
+  const {
+    items, amount, customerEmail, userId: rawUserId,
+    billingState, billingCity, paymentMethodId, customerPhone, customerAddress, lastName,
+    subtotal, specifications, customerName
+  } = req.body;
 
-  const { items, amount, customerEmail, customerLastname, userId,
-        billingState,
-        billingCity, paymentMethodId,customerPhone,customerAddress, subtotal, specifications, customerName } = req.body;
-
-  if (!items || !amount || !customerEmail || !paymentMethodId || !customerPhone 
-    || !customerAddress || !subtotal || !customerName ||!customerLastname ||!billingCity ||
-     !billingState ) {
-    
+  // Validación de campos requeridos (userId NO es requerido)
+  if (!items || !amount || !customerEmail || !paymentMethodId || !customerPhone ||
+      !customerAddress || !subtotal || !customerName || !billingCity || !lastName ||
+      !billingState) {
     return res.status(400).json({ success: false, message: 'Required data is missing.' });
   }
 
+  // Normaliza userId opcional
+  const userId = (typeof rawUserId === 'string' && rawUserId.trim().length > 0)
+    ? rawUserId.trim()
+    : null;
+
   try {
     const orderNumber = await generateUniqueOrderNumber();
-    
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100),
       currency: 'usd',
@@ -59,31 +36,36 @@ const createOrder = async (req, res) => {
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
       metadata: { orderNumber, customerEmail },
-       payment_method_options: {
-    card: {
-      request_three_d_secure: 'automatic',
-    },
-  },
-    shipping: {
-    name: `${customerName} ${customerLastname}`,
-    address: {
-      line1: customerAddress,
-      city: billingCity,
-      state: billingState,
-      country: 'US',
-    },
-    }
+      payment_method_options: { card: { request_three_d_secure: 'automatic' } },
+      shipping: {
+        name: `${customerName} ${lastName}`,
+        address: { line1: customerAddress, city: billingCity, state: billingState, country: 'US' },
+      }
     });
 
     // Validar existencia de cada producto
     for (const item of items) {
-      const prod = await prisma.product.findUnique({  where: { id: item.productId } });
+      const prod = await prisma.product.findUnique({ where: { id: item.productId } });
       if (!prod) {
-      
-        return res.status(400).json({
-          success: false,
-          message: `Product not found: ${item.productId}`
-        });
+        return res.status(400).json({ success: false, message: `Product not found: ${item.productId}` });
+      }
+    }
+
+    // Construye el bloque de usuario solo si viene userId válido y existe
+    let userData = {};
+    if (userId) {
+      const userExists = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true }
+      });
+
+      if (userExists) {
+        // Opción segura: relacionar por connect (no pases userId scalar a la vez)
+        userData = { user: { connect: { id: userId } } };
+      } else {
+        // Caso mixto prod/dev: trátalo como invitado (NO conectes, NO pases userId)
+        // Si prefieres estrictos, puedes en su lugar hacer: return res.status(400)...
+        userData = {};
       }
     }
 
@@ -91,8 +73,8 @@ const createOrder = async (req, res) => {
       data: {
         orderNumber,
         status: 'PAID',
-        subtotal: subtotal,
-        totalAmount: amount , 
+        subtotal,
+        totalAmount: amount,
         paymentMethod: "Stripe",
         stripePaymentIntentId: paymentIntent.id,
         customerName,
@@ -100,35 +82,28 @@ const createOrder = async (req, res) => {
         specifications,
         customerPhone,
         customerAddress,
-        customerLastname,
+        customerLastname: lastName,
         billingState,
         billingCity,
-        userId,
-      
+        ...userData, // <-- solo se añade si procede
         items: {
           create: items.map(item => ({
-           product: { connect: { id: item.productId } },
+            product: { connect: { id: item.productId } },
             quantity: item.quantity,
             price: item.price,
             chosenOptions: item.options ?? null,
-          // specifications: item.specifications ?? null,
           }))
         }
       },
       include: { items: true }
     });
-    return res.status(201).json( order );
+
+    return res.status(201).json(order);
   } catch (error) {
     console.error('Error to create order:', error);
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-      error: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message, error: error.message });
   }
 };
-
-
 
 async function getOrders(req, res) {
     const { status, customerType, dateFilter, page = 1, perPage = 20 ,  orderNumber,origin} = req.query;
@@ -415,6 +390,7 @@ const deleteOrder = async (req, res) => {
 
 
 const refundOrder = async (req, res) => {
+   
   const { id } = req.params;               // id de la orden en tu base
   const { totalAmount } = req.body;        // monto a reembolsar (en dólares), opcional
 
