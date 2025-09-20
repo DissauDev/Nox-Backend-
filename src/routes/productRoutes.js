@@ -24,9 +24,12 @@ router.get('/products/:id', getProductById);
 router.put('/products/:id', updateProduct);
 router.delete('/products/:id', deleteProduct);
 router.patch('/products/:id/status',   updateProductStatus);
+router.get("/products/:id/suggestions", getProductSuggestions);
+
+
 router.post('/products/:id/options',   setProductOptions);
 router.get('/products/:id/options',    getProductOptions);
-router.get("/products/:id/suggestions", getProductSuggestions);
+
 
 module.exports = router;
  

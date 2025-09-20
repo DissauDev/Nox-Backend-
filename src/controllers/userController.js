@@ -1,14 +1,10 @@
-const { PrismaClient } = require('@prisma/client');
+
 const bcryptjs = require('bcryptjs');
-const { generateJWT } = require('../utils/jwtUtils');
-const prisma = new PrismaClient();
+const { prisma } = require('../lib/prisma');
 const crypto = require('crypto')
-const bcrypt = require('bcrypt')
 const { sendEmail } = require('../utils/email');  
-
+const { verifyRefreshToken }= require('../utils/jwtUtils.js');
 const { generateAccessToken, generateRefreshToken }= require('../utils/jwtUtils.js');
-
-
 
 // Crear usuario
 const createUser = async (req, res) => {
@@ -106,191 +102,6 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-const updateUser = async (req, res, next) => {
-
-  const {id} = req.params;
-  if(!id){
-    return res.status(400).json({
-      message:"Id params is required"
-    })
-  }
-  const data = req.body;
-
-  try {
-    const user = await   prisma.user.update({
-      where: { id: id },
-      data,
-    });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
-  } catch (error) {
-    next(error);
-  }
-};
-
-const updatePassword = async (req, res) => {
-  const { id } = req.params;
-  const { password } = req.body;
-
-  // Validar entrada
-  if (!password) {
-    return res.status(400).json({ message: "New password is required" });
-  }
-
-  try {
-    // Asegúrate de que el ID sea un número
-    const userId = parseInt(id);
-    if (isNaN(userId)) {
-      return res.status(400).json({ message: "ID invalid" });
-    }
-
-    // Verificar si el usuario existe
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Hashear la contraseña
-    const hashedPassword = await bcryptjs.hash(password, 6);
-
-    // Actualizar la contraseña
-    await prisma.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
-    });
-
-    res.status(200).json({ message: "Password update" });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error server" });
-  }
-};
-//--  
-const deleteUser = async (req, res, next) => {
-  try {
-
-  const {id} = req.params
-  
-    if (!id) {
-      return res.status(400).json({ message: 'Invalid user ID format' });
-    }
-
-    // Buscar el usuario por su ID
-    const user = await prisma.user.findUnique({
-      where: { id: id },
-    });
-
-    // Si el usuario no existe, retorna un 404
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Si el usuario existe, procede a eliminarlo
-   await prisma.user.delete({
-      where: { id },
-    });
-
-    // Retorna una respuesta de éxito
-    res.json({ message: 'User deleted' });
-  } catch (error) {
-    // Manejo de errores
-    console.log(error);
-        res.status(500).json({ message: "Error server" });
-    next(error);
-
-  }
-};
-const login = async (req, res = response) => {
-  const { email, password } = req.body;
-
-  try {
-    const user = await prisma.user.findUnique({ where: { email } });;
-    if (!user) {
-      return res.status(404).json({ message: 'User o password invalid' });
-    }
-
-    // Verificar contraseña
-    const isPasswordValid = await bcryptjs.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ message: 'User or password invalid' });
-    }
-
-    const payload = {
-  id: user.id,
-  email: user.email,
-  role: user.role
-};
-
-const accessToken  = generateAccessToken(payload);
-const refreshToken = generateRefreshToken(payload);
-    // Excluir la contraseña del objeto user
-    const { password: _, ...userWithoutPassword } = user;
-
-    res.status(201).json({
-      user: userWithoutPassword,
-       accessToken,
-  refreshToken
-    });
-
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({
-      ok: false,
-      message: 'Internal Server Error'
-    });
-  }
-
-}
-
-const refreshTokenHandler = async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) {
-    return res.status(400).json({ message: 'Not got a refreshToken' });
-  }
-
-  try {
-    // Verificamos firma y expiración del refresh token
-    const decoded = await verifyRefreshToken(refreshToken);
-
-    // Opcional: validamos que ese refreshToken aparezca en BD para ese usuario
-    // Por ejemplo:
-    const userInDb = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: { refreshToken: true }
-    });
-
-    if (!userInDb || userInDb.refreshToken !== refreshToken) {
-      return res.status(401).json({ message: 'Refresh token invalid' });
-    }
-
-    // Si todo está OK, generamos nuevos tokens
-    const payload = {
-      id: decoded.id,
-      email: decoded.email,
-      role: decoded.role
-    };
-
-    const newAccessToken = generateAccessToken(payload);
-    const newRefreshToken = generateRefreshToken(payload);
-
-    // Guardamos el nuevo refreshToken en BD (invalidando el anterior)
-    await prisma.user.update({
-      where: { id: decoded.id },
-      data: { refreshToken: newRefreshToken }
-    });
-
-    res.json({
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken
-    });
-  } catch (err) {
-    console.error('Error en refreshTokenHandler:', err);
-    return res.status(401).json({ message: 'Refresh token invalid o expired' });
-  }
-};
 
 const getCustomers = async (req, res) => {
   try {
@@ -417,124 +228,6 @@ const getUsersStats = async (req, res) => {
   }
 };
 
-const logout = (req, res) => {
-  
-  try {
-    // Borra la cookie donde guardas el JWT
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/'
-    });
-    return res.status(200).json({ message: 'Logged out successfully' });
-  } catch (err) {
-    console.error('Logout error:', err);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-
-const forgotPassword = async (req, res) => {
-
-  try {
-     const { email } = req.body;
-     console.log(email);
-     console.log(email === 'mauriciogarco@gmail.com');
-  if(!email) return res.status(400).json({message:'Email is required'});
-  const user = await prisma.user.findUnique({ where:{ email }});
-  if (!user) return res.status(400).json({ message: 'User not found' });
-
-  // 1) Genera token
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  const hashed = crypto.createHash('sha256').update(resetToken).digest('hex');
-
-  // 2) Guarda el hash + expiración
-  await prisma.user.update({
-    where:{ id: user.id },
-    data:{
-      passwordResetToken: hashed,
-      passwordResetExpires: new Date(Date.now() + 60*60*1000)
-    }
-  });
-
-  // 3) Envía email con la URL
-  const resetURL = `${process.env.FRONT_URL}/forgot-password?token=${resetToken}`;
-await sendEmail({
-  to: user.email,
-  subject: "Reset Your Password - Nox Cookie Bar",
-  html: `
-  <div style="background-color: #FDF9F3; padding: 40px; font-family: Arial, sans-serif; color: #4b2e61;">
-    <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-      <h2 style="color: #4b2e61;">Reset your password</h2>
-      <p style="font-size: 16px; line-height: 1.6;">
-        Hello <strong>${user.name || user.email}</strong>,
-      </p>
-      <p style="font-size: 16px; line-height: 1.6;">
-        We received a request to reset your password. If you didn’t request this, please ignore this email.
-      </p>
-      <p style="font-size: 16px; line-height: 1.6;">
-        Otherwise, click the button below to choose a new password:
-      </p>
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${resetURL}" style="background-color: #4b2e61; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-          Reset Password
-        </a>
-      </div>
-      <p style="font-size: 14px; color: #777;">
-        This link will expire in 1 hour. If you have any questions or need assistance, please contact our support team.
-      </p>
-      <p style="font-size: 14px; color: #777; margin-top: 40px;">
-        Thank you,<br/>
-        The Nox Cookie Bar Team
-      </p>
-    </div>
-  </div>
-  `
-});
-
-
-  res.status(200).json({ message: 'Email Send' });
-  } catch (error) {
-    console.log(error);
-     res.status(500).json({ message: 'Error to send email' });
-  }
- 
-};
-
-const resetPassword = async (req, res) => {
-  const { token, password } = req.body;
-  try {
-    const hashed = crypto.createHash('sha256').update(token).digest('hex');
-
-  const user = await prisma.user.findFirst({
-    where:{
-      passwordResetToken: hashed,
-      passwordResetExpires: { gt: new Date() }
-    }
-  });
-  if (!user) return res.status(400).json({ message: 'Token invalid or expired.' });
-
-  // 1) Actualiza contraseña
-  const newHashed = await bcrypt.hash(password, 10);
-  await prisma.user.update({
-    where:{ id: user.id },
-    data:{
-      password: newHashed,
-      passwordResetToken: null,
-      passwordResetExpires: null
-    }
-  });
-
-  // 2) Opcional: devuelve JWT para loguear ya
-  const tokenJWT = await generateJWT(user);
-  res.status(200).json({ message: 'Password Update', token: tokenJWT });
-  } catch (error) {
-    console.log(error);
-     res.status(500).json({ message: 'Fail to update password' });
-  }
-  
-};
  const getStaffUsers = async (req, res) => {
   try {
     const {
@@ -587,6 +280,303 @@ const resetPassword = async (req, res) => {
   } catch (err) {
     console.error('getStaffUsers error:', err);
     res.status(500).json({ message: err.message });
+  }
+};
+const updatePassword = async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  // Validar entrada
+  if (!password) {
+    return res.status(400).json({ message: "New password is required" });
+  }
+
+  try {
+    // Asegúrate de que el ID sea un número
+    const userId = id;
+   
+    // Verificar si el usuario existe
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Hashear la contraseña
+    const hashedPassword = await bcryptjs.hash(password, 6);
+
+    // Actualizar la contraseña
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    res.status(200).json({ message: "Password update" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error server" });
+  }
+};
+const forgotPassword = async (req, res) => {
+
+  try {
+     const { email } = req.body;
+ 
+  if(!email) return res.status(400).json({message:'Email is required'});
+  const user = await prisma.user.findUnique({ where:{ email }});
+  if (!user) return res.status(400).json({ message: 'User not found' });
+
+  // 1) Genera token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const hashed = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+  // 2) Guarda el hash + expiración
+  await prisma.user.update({
+    where:{ id: user.id },
+    data:{
+      passwordResetToken: hashed,
+      passwordResetExpires: new Date(Date.now() + 60*60*1000)
+    }
+  });
+
+  // 3) Envía email con la URL
+  const resetURL = `${process.env.FRONT_URL}/forgot-password?token=${resetToken}`;
+await sendEmail({
+  to: user.email,
+  subject: "Reset Your Password - Nox Cookie Bar",
+  html: `
+  <div style="background-color: #FDF9F3; padding: 40px; font-family: Arial, sans-serif; color: #2f3b79;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+      <h2 style="color: #2f3b79;">Reset your password</h2>
+      <p style="font-size: 16px; line-height: 1.6;">
+        Hello <strong>${user.name || user.email}</strong>,
+      </p>
+      <p style="font-size: 16px; line-height: 1.6;">
+        We received a request to reset your password. If you didn’t request this, please ignore this email.
+      </p>
+      <p style="font-size: 16px; line-height: 1.6;">
+        Otherwise, click the button below to choose a new password:
+      </p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetURL}" style="background-color: #2f3b79; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+          Reset Password
+        </a>
+      </div>
+      <p style="font-size: 14px; color: #777;">
+        This link will expire in 1 hour. If you have any questions or need assistance, please contact our support team.
+      </p>
+      <p style="font-size: 14px; color: #777; margin-top: 40px;">
+        Thank you,<br/>
+        The Nox Cookie Bar Team
+      </p>
+    </div>
+  </div>
+  `
+});
+
+
+  res.status(200).json({ message: 'Email Send' });
+  } catch (error) {
+    console.log(error);
+     res.status(500).json({ message: 'Error to send email' });
+  }
+ 
+};
+
+const resetPassword = async (req, res) => {
+  const { token, password } = req.body;
+  try {
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+
+  const user = await prisma.user.findFirst({
+    where:{
+      passwordResetToken: hashed,
+      passwordResetExpires: { gt: new Date() }
+    }
+  });
+  if (!user) return res.status(400).json({ message: 'Token invalid or expired.' });
+
+  // 1) Actualiza contraseña
+  const newHashed = await bcryptjs.hash(password,6);
+  await prisma.user.update({
+    where:{ id: user.id },
+    data:{
+      password: newHashed,
+      passwordResetToken: null,
+      passwordResetExpires: null
+    }
+  });
+
+  res.status(200).json({ message: 'Password Update' });
+  } catch (error) {
+    console.log(error);
+     res.status(500).json({ message: 'Fail to update password' });
+  }
+  
+};
+//--  
+
+const login = async (req, res = response) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });;
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verificar contraseña
+    const isPasswordValid = await bcryptjs.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'User or password invalid' });
+    }
+
+    const payload = {
+  id: user.id,
+  email: user.email,
+  role: user.role
+};
+   
+const accessToken  = generateAccessToken(payload);
+const refreshToken = generateRefreshToken(payload);
+    // Excluir la contraseña del objeto user// Guarda el refresh token en BD para que /refresh pueda validarlo luego
+   await prisma.user.update({
+     where: { id: user.id },     data: { refreshToken }
+   });
+    const { password: _pw, refreshToken: _rt, ...userWithoutSensitive } = user;
+    res.status(201).json({
+      user: userWithoutSensitive,
+       accessToken,
+  refreshToken
+    });
+
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      ok: false,
+      message: 'Internal Server Error'
+    });
+  }
+
+}
+
+const refreshTokenHandler = async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    return res.status(400).json({ message: 'Not got a refreshToken' });
+  }
+
+  try {
+    // Verificamos firma y expiración del refresh token
+    const decoded = await verifyRefreshToken(refreshToken);
+
+    // Opcional: validamos que ese refreshToken aparezca en BD para ese usuario
+    // Por ejemplo:
+    const userInDb = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { refreshToken: true }
+    });
+
+    if (!userInDb || userInDb.refreshToken !== refreshToken) {
+      return res.status(401).json({ message: 'Refresh token invalid' });
+    }
+
+    // Si todo está OK, generamos nuevos tokens
+    const payload = {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role
+    };
+
+    const newAccessToken = generateAccessToken(payload);
+    const newRefreshToken = generateRefreshToken(payload);
+
+    // Guardamos el nuevo refreshToken en BD (invalidando el anterior)
+    await prisma.user.update({
+      where: { id: decoded.id },
+      data: { refreshToken: newRefreshToken }
+    });
+
+    res.json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (err) {
+    console.error('Error en refreshTokenHandler:', err);
+    return res.status(401).json({ message: 'Refresh token invalid o expired' });
+  }
+};
+
+
+const logout = (req, res) => {
+  
+  try {
+    // Borra la cookie donde guardas el JWT
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+    return res.status(200).json({ message: 'Logged out successfully' });
+  } catch (err) {
+    console.error('Logout error:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+const deleteUser = async (req, res) => {
+    const {id} = req.params
+    if (!id) {
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+  try {
+    // Si el usuario existe, procede a eliminarlo
+   await prisma.user.delete({
+      where: { id },
+    });
+    // Retorna una respuesta de éxito
+    res.json({ message: 'User deleted' });
+  } catch (error) {
+       // Prisma: registro no encontrado
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    // Manejo de errores
+    console.log(error);
+        res.status(500).json({ message: "Error server" ,error});
+ 
+
+  }
+};
+
+
+
+const updateUser = async (req, res,) => {
+
+  const {id} = req.params;
+  if(!id){
+    return res.status(400).json({
+      message:"Id params is required"
+    })
+  }
+  const data = req.body;
+
+  try {
+    const user = await   prisma.user.update({
+      where: { id: id },
+      data,
+    });
+   
+    res.json(user);
+  } catch (error) {
+       // Prisma: registro no encontrado
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ message: 'User not found' });
+    }
+     console.log(error);
+        res.status(500).json({ message: "Error server",error });
   }
 };
 

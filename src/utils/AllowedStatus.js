@@ -1,0 +1,12 @@
+const ALLOWED_STATUSES = [
+  "PENDING",
+  "PAID",
+  "PROCESSING",
+  "READY_FOR_PICKUP",
+  "OUT_FOR_DELIVERY",
+  "COMPLETED",
+  "CANCELLED",
+  "REFUNDED",
+  "FAILED",
+];
+module.exports = { ALLOWED_STATUSES };

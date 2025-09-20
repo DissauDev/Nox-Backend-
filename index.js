@@ -1,8 +1,10 @@
+// index.js
 require('dotenv').config();
-const app = require('./app');
+const { buildApp } = require('./app');
 
-const PORT = process.env.PORT || 3000;
+const app = buildApp();
+const port = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+app.listen(port, () => {
+  console.log(`API listening on http://localhost:${port}`);
 });

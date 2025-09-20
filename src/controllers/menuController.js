@@ -1,7 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-const { categories } = require('../utils/Categorys');
-
+const { prisma } = require('../lib/prisma');
  async function getMenu(req, res) {
   try {
     // Obtener todos los productos cuyas categorías están en la lista de categorías
@@ -38,7 +35,6 @@ include: {
   orderBy: { createdAt: "asc" }
 });
 // 1) agrupar productos por categoría
-
 
 // 2) construir array final
 const grouped = products.reduce((acc, prod) => {
@@ -88,8 +84,6 @@ return res.json(menu);
   } catch (error) {
     console.error('Error fetching menu:', error);
     res.status(500).json({ message: 'Error to get Menu' });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
