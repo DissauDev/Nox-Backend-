@@ -91,7 +91,6 @@ const getUserById = async (req, res, next) => {
   }
 };
 
-
 // Obtener todos los usuarios
 const getAllUsers = async (req, res) => {
   try {
@@ -102,7 +101,6 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-
 const getCustomers = async (req, res) => {
   try {
     // 1) Parámetros de consulta
@@ -111,23 +109,37 @@ const getCustomers = async (req, res) => {
     const take    = Math.min(Math.max(parseInt(limit, 10), 1), 100);
     const skip    = (pageNum - 1) * take;
 
-    // 2) Construir filtro de usuarios
-    const userWhere = { role: 'USER' };
-    if (search) {
-      userWhere.OR = [
-        { name:  { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } }
-      ];
-    }
+    const baseWhere = {
+      OR: [
+    { role: "USER" },
+    { role: "ADMIN", orders: { some: {} } },
+      { role: "EMPLOYEE", orders: { some: {} } },
+  ],
+    };
+    // const adminWhere = {role: 'ADMIN' && {orders: length: { gt: 0 }}}; // Removed invalid line
+  
+if (search) {
+  where = {
+    AND: [
+      baseWhere,
+      {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+        ],
+      },
+    ],
+  };
+}
 
     // 3) Total de usuarios que cumplen filtro
     const totalUsers = await prisma.user.count({
-      where: userWhere
+      where: baseWhere
     });
 
     // 4) Traer sólo la página solicitada
     const users = await prisma.user.findMany({
-      where: userWhere,
+      where: baseWhere,
       select: {
         id:         true,
         name:       true,
@@ -196,10 +208,13 @@ const getCustomers = async (req, res) => {
 const getUsersStats = async (req, res) => {
   try {
     // 1) Contar todos los usuarios únicos que han hecho pedidos (clientes reales)
-    const distinctCustomers = await prisma.order.findMany({
-      distinct: ['userId'],
-      select: { userId: true }
-    });
+  const distinctCustomers = await prisma.order.findMany({
+  where: { userId: { not: null } },
+  distinct: ['userId'],
+  select: { userId: true },
+});
+
+
     const totalCustomers = distinctCustomers.length;
 
     // 2) Agregar todos los pedidos (de todos los roles)
@@ -550,8 +565,6 @@ const deleteUser = async (req, res) => {
 
   }
 };
-
-
 
 const updateUser = async (req, res,) => {
 

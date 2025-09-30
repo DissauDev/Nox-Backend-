@@ -9,7 +9,8 @@ const {
   getCategoriesWithSales,
   getCategoriesAvailable,
   updateCategoryStatus,
-  getAvailableCarouselCategories
+  getAvailableCarouselCategories,
+  updateCategorySortOrder
 } = require('../controllers/categoryControllers');
 
 router.post('/categories', createCategory);
@@ -22,4 +23,5 @@ router.patch('/categories/:id/status',   updateCategoryStatus);
 router.delete('/categories/:id', deleteCategory);
 router.get('/categories-available-carousel', getAvailableCarouselCategories);
 
+router.patch('/categories/:id/sort-order',   updateCategorySortOrder);
 module.exports = router;

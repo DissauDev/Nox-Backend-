@@ -2,6 +2,7 @@
 const { prisma } = require('../lib/prisma');
 const { ProductStatus } = require('@prisma/client');
 const { validateCreate, validateUpdate } = require('../utils/validators');
+const { gt } = require('zod');
 
 // ---------- Handlers ----------
 async function createCategory(req, res) {
@@ -177,6 +178,64 @@ async function updateCategoryStatus(req, res) {
   }
 }
 
+
+async function updateCategorySortOrder(req, res) {
+  try {
+    const { id } = req.params;
+    const { newSortOrder } = req.body;
+
+    // 1) Validaciones básicas
+    const j = Number(newSortOrder);
+    if (!Number.isInteger(j) || j < 0) {
+      return res.status(400).json({ message: 'newSortOrder must be a non-negative integer' });
+    }
+
+    // 2) Traer la categoría a mover (por id: robusto)
+    const moving = await prisma.category.findUnique({ where: { id } });
+    if (!moving) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    const i = moving.sortOrder;
+    if (i === j) {
+      // No-op: nada que hacer
+      return res.json(moving);
+    }
+
+    // 3) Ejecutar en transacción para mantener consistencia
+    const [_, updated] = await prisma.$transaction(async (tx) => {
+      if (j > i) {
+        // Mover hacia abajo: el bloque (i, j] decrementa 1
+        await tx.category.updateMany({
+          where: { sortOrder: { gt: i, lte: j } },
+          data:  { sortOrder: { decrement: 1 } },
+        });
+      } else {
+        // Mover hacia arriba: el bloque [j, i) incrementa 1
+        await tx.category.updateMany({
+          where: { sortOrder: { gte: j, lt: i } },
+          data:  { sortOrder: { increment: 1 } },
+        });
+      }
+
+      // Poner a la movida en su nueva posición
+      const updatedRow = await tx.category.update({
+        where: { id },
+        data:  { sortOrder: j },
+      });
+
+      // Devolver algo útil (la fila actualizada)
+      return [true, updatedRow];
+    });
+
+    return res.json(updated);
+  } catch (error) {
+    console.error('updateCategorySortOrder error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+
 module.exports = {
   createCategory,
   getCategories,
@@ -187,4 +246,5 @@ module.exports = {
   getCategoriesAvailable,
   updateCategoryStatus,
   getAvailableCarouselCategories,
+  updateCategorySortOrder
 };
