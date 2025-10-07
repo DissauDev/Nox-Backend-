@@ -69,7 +69,7 @@ const menu = dbCategories
         name:        p.name,
         description: p.description,
         price:       p.price,
-        sellPrice:   p.sellPrice,
+        salePrice:   p.salePrice,
         status:      p.status,
         category:    cat.name,
         options:     parsedOptions,

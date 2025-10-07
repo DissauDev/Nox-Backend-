@@ -28,7 +28,7 @@ async function createProduct(overrides = {}) {
     data: {
       name: `Prod ${Date.now()}-${Math.random().toString(16).slice(2)}`,
       price: 4.5, // Float según tu schema
-      sellPrice: null,
+      salePrice: null,
       specifications: null,
       description: 'Test product',
       imageLeft: null,

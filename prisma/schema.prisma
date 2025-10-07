@@ -26,7 +26,7 @@ model Product {
   id             String          @id @default(uuid())
   name           String          @unique
   price          Float
-  sellPrice      Float?
+  salePrice      Float?          @map("sellPrice")
   specifications String?
   description    String?
   imageLeft      Json? // { url, blurHash }
@@ -118,15 +118,24 @@ model Order {
   stripePaymentIntentId String
   userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
-  customerName          String
-  customerEmail         String
-  customerPhone         String
-  customerAddress       String
-  customerLastname      String?
-  billingState          String?
-  billingCity           String?
-  items                 OrderItem[]
-  specifications        String?     @default("")
+
+  // Datos del cliente
+  customerName     String
+  customerLastname String?
+  customerEmail    String
+  customerPhone    String?
+
+  // Dirección de facturación / envío
+  customerAddress String // line1
+  apartment       String? // line2 (opcional)
+  company         String? // (opcional)
+  billingCity     String?
+  billingState    String?
+  zipcode         String? // <-- NUEVO (requerido)
+
+  specifications String? @default("")
+
+  items OrderItem[]
 }
 
 model StoreConfig {
@@ -136,6 +145,7 @@ model StoreConfig {
   taxFixed   Float    @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  taxLabel   String   @default("Card fees") // 👈 nuevo
 }
 
 /// Usuario

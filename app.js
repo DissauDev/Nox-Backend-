@@ -39,8 +39,8 @@ function buildApp({
   app.use(cors({ origin: true, credentials: true }));
 
   // Body parsers
-  app.use(express.json({ limit: '2mb' }));
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '20mb' }));
+  app.use(express.urlencoded({ extended: true ,limit: '20mb'}));
 
   // (Opcional) rate limit, sáltalo en rutas ruidosas o en test
   if (enableRateLimit && rateLimiter) {

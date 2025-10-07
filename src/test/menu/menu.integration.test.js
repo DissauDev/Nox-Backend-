@@ -27,7 +27,7 @@ async function createProduct(categoryId, data = {}) {
     name: unique('Prod'),
     description: 'desc',
     price: 10.0,
-    sellPrice: null,
+    salePrice: null,
     status: 'AVAILABLE',     // importante para que entre al menú
     imageLeft: null,
     imageRight: null,

@@ -746,6 +746,62 @@ async function cloneOptionValueToGroup(req, res) {
   }
 }
 
+ async function bulkDeleteOptionValuesByName(req, res) {
+  try {
+    const { name, dryRun = false } = req.body || {};
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ message: 'Provide "name" string' });
+    }
+    const needle = name.trim();
+    if (!needle) {
+      return res.status(400).json({ message: 'Provide non-empty "name"' });
+    }
+
+    // 1) Busca candidatos por nombre case-insensitive
+    const candidates = await prisma.optionValue.findMany({
+      where: { name: { equals: needle, mode: 'insensitive' } },
+      select: { id: true, name: true, groupId: true, productRefId: true },
+    });
+
+    if (candidates.length === 0) {
+      return res.json({ count: 0, note: `No matches for "${needle}"`, matches: [] });
+    }
+
+    if (dryRun) {
+      // Solo mostrar qué se eliminaría
+      return res.json({
+        dryRun: true,
+        wouldDelete: {
+          optionValueCount: candidates.length,
+        },
+        matches: candidates,
+      });
+    }
+
+    const ids = candidates.map(c => c.id);
+
+    // 2) Borra en transacción: primero la tabla puente, luego OptionValue
+    const [delLinks, delValues] = await prisma.$transaction([
+      prisma.productOptionValue.deleteMany({ where: { valueId: { in: ids } } }),
+      prisma.optionValue.deleteMany({ where: { id: { in: ids } } }),
+    ]);
+
+    return res.json({
+      deleted: {
+        productOptionValueCount: delLinks.count,
+        optionValueCount: delValues.count,
+      },
+      name: needle,
+    });
+  } catch (err) {
+    console.error('Error bulk deleting by name:', err);
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      return res.status(400).json({ message: err.message });
+    }
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
 
 
 module.exports = {
@@ -763,5 +819,6 @@ module.exports = {
   createGroupFromCategory,
   patchOptionValueStatus,
   bulkUpdateOptionValuesStatus,
-  cloneOptionValueToGroup
+  cloneOptionValueToGroup,
+  bulkDeleteOptionValuesByName
 };

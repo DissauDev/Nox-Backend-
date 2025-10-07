@@ -19,11 +19,11 @@ const { prisma } = require('../lib/prisma');
 const createStoreConfig = async (req, res) => {
 
   try {
-   const {taxFixed,taxPercent,taxEnabled} = req.body 
-   if(taxEnabled === undefined || taxPercent === undefined || taxFixed === undefined) {
+   const {taxFixed,taxPercent,taxEnabled, taxLabel} = req.body 
+   if(taxEnabled === undefined || taxPercent === undefined || taxFixed === undefined || taxLabel === undefined) {
     return   res.status(400).json({ message: 'taxFixed,taxPercent & taxEnabled are required' });
    }
-    const config = await prisma.storeConfig.create({data:{taxEnabled: Boolean(taxEnabled), taxFixed: Number(taxFixed), taxPercent: Number(taxPercent)}})
+    const config = await prisma.storeConfig.create({data:{taxEnabled: Boolean(taxEnabled), taxFixed: Number(taxFixed),taxLabel, taxPercent: Number(taxPercent)}})
 
   return res.status(201).json(config);
   } catch (error) {
@@ -38,11 +38,11 @@ const createStoreConfig = async (req, res) => {
 // Actualizar la configuración (solo admin)
 const updateStoreConfig = async (req, res) => {
   try {
-    const { taxEnabled, taxPercent, taxFixed } = req.body;
+    const { taxEnabled, taxPercent, taxFixed, taxLabel } = req.body;
    const updated = await prisma.storeConfig.upsert({
      where: { id: 1 },
-     update: { taxEnabled, taxPercent, taxFixed },
-     create: { id: 1, taxEnabled, taxPercent, taxFixed }
+     update: { taxEnabled, taxPercent, taxFixed, taxLabel },
+     create: { id: 1, taxEnabled, taxPercent, taxFixed, taxLabel }
    });
     res.json(updated);
   } catch (error) {

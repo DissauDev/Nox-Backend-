@@ -9,7 +9,7 @@ async function createProduct(req, res) {
       name,
       description,
       price,
-      sellPrice,
+      salePrice,
       specifications,
       options,          // JSON string o array de objetos a crear
       category,
@@ -68,7 +68,7 @@ async function createProduct(req, res) {
       name,
       description: description || undefined,
       price: parseFloat(price),
-      sellPrice: sellPrice != null ? parseFloat(sellPrice) : undefined,
+      salePrice: salePrice != null ? parseFloat(salePrice) : undefined,
       specifications: specifications || undefined,
         category: {
         connect: { id: cat.id }
@@ -140,7 +140,7 @@ async function updateProduct(req, res) {
       name,
       description,
       price,
-      sellPrice,
+      salePrice,
       specifications,
       options,
       category,
@@ -165,7 +165,7 @@ async function updateProduct(req, res) {
 
     if (description !== undefined) updateData.description = description;
     if (price !== undefined) updateData.price = parseFloat(price);
-    if (sellPrice !== undefined) updateData.sellPrice = parseFloat(sellPrice);
+    if (salePrice !== undefined) updateData.salePrice = parseFloat(salePrice);
     if (specifications !== undefined) updateData.specifications = specifications;
 
     if (options !== undefined) {
@@ -238,6 +238,7 @@ async function getProductById(req, res) {
         },
         // 2) Grupos de opciones asignados al producto
         options: {
+         where:{group:{OptionValue:{some:{isAvailable:true}}}},
           include: {
             group: {
               select: {
@@ -249,6 +250,7 @@ async function getProductById(req, res) {
                 showImages: true,
                 // aquí traemos los valores posibles del grupo
                 OptionValue: {
+                  where: { isAvailable: true },
                   select: {
                     id: true,
                     name: true,

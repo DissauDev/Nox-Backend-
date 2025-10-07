@@ -41,7 +41,7 @@ describe('Products API', () => {
       name: 'Cheese Burger',
       description: 'Rich & tasty',
       price: 12.5,
-      sellPrice: 10.99,
+      salePrice: 10.99,
       specifications: 'Spec text',
       category: 'Burgers',
       imageLeftUrl: 'https://cdn.test/left.jpg',
@@ -59,7 +59,7 @@ describe('Products API', () => {
     expect(res.body).toHaveProperty('id');
     expect(res.body.name).toBe(body.name);
     expect(res.body.price).toBeCloseTo(12.5, 2);
-    expect(res.body.sellPrice).toBeCloseTo(10.99, 2);
+    expect(res.body.salePrice).toBeCloseTo(10.99, 2);
     expect(res.body.isOptionItem).toBe(true);
     expect(res.body.packOptionSurcharge).toBe(2.5);
     expect(res.body.packMaxItems).toBe(3);

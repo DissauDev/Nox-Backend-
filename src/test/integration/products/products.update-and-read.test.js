@@ -54,7 +54,7 @@ describe('Products API - update & getById', () => {
     const body = {
       name,
       price: 12.5,
-      sellPrice: 10.99,
+      salePrice: 10.99,
       category: categoryName,
       imageLeftUrl: 'https://cdn.test/left.jpg'
       // No enviamos type/status para evitar enums inválidos
@@ -84,7 +84,7 @@ describe('Products API - update & getById', () => {
       name: 'Cheese Burger Deluxe',
       description: 'Upgraded burger',
       price: 14.25,
-      sellPrice: 11.99,
+      salePrice: 11.99,
       specifications: 'Spec v2',
       category: 'Sandwiches',
       imageLeftUrl: 'https://cdn.test/left-v2.jpg',
@@ -100,7 +100,7 @@ describe('Products API - update & getById', () => {
     expect(rUp.status).toBe(200);
     expect(rUp.body.name).toBe('Cheese Burger Deluxe');
     expect(Number(rUp.body.price)).toBeCloseTo(14.25, 2);
-    expect(Number(rUp.body.sellPrice)).toBeCloseTo(11.99, 2);
+    expect(Number(rUp.body.salePrice)).toBeCloseTo(11.99, 2);
     expect(rUp.body.isOptionItem).toBe(true);
     expect(Number(rUp.body.packOptionSurcharge)).toBeCloseTo(1.5, 2);
     expect(rUp.body.packMaxItems).toBe(4);

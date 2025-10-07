@@ -13,6 +13,7 @@ const {
   patchOptionValueStatus,
   bulkUpdateOptionValuesStatus,
   bulkCloneOptionValue,
+  bulkDeleteOptionValuesByName
 
 } = require('../controllers/optionGroupController');
 
@@ -26,7 +27,8 @@ router.delete('/option-group/:groupId',         deleteOptionGroup);
 router.patch('/option-values/:valueId/status', patchOptionValueStatus);
 // OptionValue status (bulk)
 router.post('/option-values/bulk-status', bulkUpdateOptionValuesStatus);
-
+// POST por claridad (body con JSON). Si prefieres DELETE también vale.
+router.post('/option-values/bulk-delete-by-name', bulkDeleteOptionValuesByName);
 router.post('/option-values/bulk-clone', bulkCloneOptionValue);
 // OptionValue CRUD
 router.post('/option-group/:groupId/values',          createOptionValue);

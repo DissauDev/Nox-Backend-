@@ -28,7 +28,7 @@ describe('GET /api/settings/tax (getStoreConfig)', () => {
 
   it('200 - devuelve la config existente', async () => {
     await prisma.storeConfig.create({
-      data: { id: 1, taxEnabled: true, taxPercent: 8.25, taxFixed: 0.5 }
+      data: { id: 1, taxEnabled: true, taxPercent: 8.25, taxFixed: 0.5, taxLabel: "My fee" }
     });
 
     const res = await request(app).get('/api/settings/tax').send();
@@ -38,6 +38,7 @@ describe('GET /api/settings/tax (getStoreConfig)', () => {
       taxEnabled: true,
       taxPercent: 8.25,
       taxFixed: 0.5,
+      taxLabel: "My fee"
     });
   });
 });
@@ -57,6 +58,7 @@ describe('POST /api/settings/tax (createStoreConfig)', () => {
       taxEnabled: false,  // ojo: false es válido con la nueva validación
       taxPercent: 0,
       taxFixed: 1.25,
+      taxLabel: "Service Fee"
     });
 
     expect(res.status).toBe(201);
@@ -65,6 +67,7 @@ describe('POST /api/settings/tax (createStoreConfig)', () => {
       taxEnabled: false,
       taxPercent: 0,
       taxFixed: 1.25,
+      taxLabel: "Service Fee"
     });
 
     const db = await getDbConfig();
@@ -73,15 +76,16 @@ describe('POST /api/settings/tax (createStoreConfig)', () => {
       taxEnabled: false,
       taxPercent: 0,
       taxFixed: 1.25,
+      taxLabel: "Service Fee"
     });
   });
 
   it('409/500 - (opcional) crear dos veces puede fallar por PK única', async () => {
     await request(app).post('/api/settings/tax').send({
-      taxEnabled: true, taxPercent: 7.5, taxFixed: 0.3
+      taxEnabled: true, taxPercent: 7.5, taxFixed: 0.3, taxLabel: "VAT"
     });
     const res2 = await request(app).post('/api/settings/tax').send({
-      taxEnabled: true, taxPercent: 7.5, taxFixed: 0.3
+      taxEnabled: true, taxPercent: 7.5, taxFixed: 0.3, taxLabel: "VAT"
     });
     // Dependiendo de cómo manejes el error, podría ser 500.
     // Este test es opcional si no vas a permitir múltiples POST.
@@ -95,6 +99,7 @@ describe('PUT /api/settings/tax (updateStoreConfig)', () => {
       taxEnabled: true,
       taxPercent: 8.5,
       taxFixed: 0.75,
+      taxLabel: "Sales Tax"
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -102,6 +107,7 @@ describe('PUT /api/settings/tax (updateStoreConfig)', () => {
       taxEnabled: true,
       taxPercent: 8.5,
       taxFixed: 0.75,
+      taxLabel: "Sales Tax"
     });
 
     const db = await getDbConfig();
@@ -110,18 +116,20 @@ describe('PUT /api/settings/tax (updateStoreConfig)', () => {
       taxEnabled: true,
       taxPercent: 8.5,
       taxFixed: 0.75,
+      taxLabel: "Sales Tax"
     });
   });
 
   it('200 - actualiza si ya existe', async () => {
     await prisma.storeConfig.create({
-      data: { id: 1, taxEnabled: false, taxPercent: 5, taxFixed: 0.2 }
+      data: { id: 1, taxEnabled: false, taxPercent: 5, taxFixed: 0.2, taxLabel: "Old Tax" }
     });
 
     const res = await request(app).put('/api/settings/tax').send({
       taxEnabled: true,
       taxPercent: 9.99,
       taxFixed: 1.0,
+      taxLabel: "Updated Tax"
     });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -129,6 +137,7 @@ describe('PUT /api/settings/tax (updateStoreConfig)', () => {
       taxEnabled: true,
       taxPercent: 9.99,
       taxFixed: 1.0,
+      taxLabel: "Updated Tax"
     });
 
     const db = await getDbConfig();
@@ -137,6 +146,7 @@ describe('PUT /api/settings/tax (updateStoreConfig)', () => {
       taxEnabled: true,
       taxPercent: 9.99,
       taxFixed: 1.0,
+      taxLabel: "Updated Tax"
     });
   });
 });

@@ -4,24 +4,30 @@ const stripe = makeStripe(); // instancia única y reutilizable
 const { prisma } = require('../lib/prisma');
 const { ALLOWED_STATUSES } = require('../utils/AllowedStatus');
 const { generateUniqueOrderNumber } = require('../utils/generateOrderNumber');
-
+const { sendOrderConfirmation } = require('../utils/orderEmail.util');
+const { sendEmail } = require('../utils/email');  
 
 const createOrder = async (req, res) => {
-   
   const {
     items, amount, customerEmail, userId: rawUserId,
-    billingState, billingCity, paymentMethodId, customerPhone, customerAddress, lastName,
-    subtotal, specifications, customerName
+    billingState, billingCity, paymentMethodId, customerPhone,
+    customerAddress, lastName, subtotal, specifications, customerName,
+    // nuevos
+    apartment,        // opcional
+    company,          // opcional
+    zipcode           // requerido
   } = req.body;
 
   // Validación de campos requeridos (userId NO es requerido)
   if (!items || !amount || !customerEmail || !paymentMethodId || !customerPhone ||
       !customerAddress || !subtotal || !customerName || !billingCity || !lastName ||
-      !billingState) {
-    return res.status(400).json({ success: false, message: 'Required data is missing.' });
+      !billingState || !zipcode) {
+    return res.status(400).json({
+      success: false,
+      message: 'Required data is missing. (customerName, lastName, customerEmail, customerPhone, customerAddress, billingCity, billingState, zipcode, subtotal, amount, items, paymentMethodId)'
+    });
   }
 
-  // Normaliza userId opcional
   const userId = (typeof rawUserId === 'string' && rawUserId.trim().length > 0)
     ? rawUserId.trim()
     : null;
@@ -29,81 +35,99 @@ const createOrder = async (req, res) => {
   try {
     const orderNumber = await generateUniqueOrderNumber();
 
+    // Crear el PaymentIntent en Stripe
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
+      amount: Math.round(Number(amount) * 100),
       currency: 'usd',
       payment_method: paymentMethodId,
       confirm: true,
       automatic_payment_methods: { enabled: true, allow_redirects: 'never' },
-      metadata: { orderNumber, customerEmail },
+      metadata: {
+        orderNumber,
+        customerEmail,
+        company: company ?? '',
+        zipcode
+      },
       payment_method_options: { card: { request_three_d_secure: 'automatic' } },
       shipping: {
         name: `${customerName} ${lastName}`,
-        address: { line1: customerAddress, city: billingCity, state: billingState, country: 'US' },
+        address: {
+          line1: customerAddress,                 // calle y número
+          line2: apartment ?? undefined,          // apt / piso (opcional)
+          city: billingCity,
+          state: billingState,
+          postal_code: zipcode,                   // <-- NUEVO
+          country: 'US'
+        },
+        phone: customerPhone
       }
     });
 
-    // Validar existencia de cada producto
+    // Valida existencia de productos
     for (const item of items) {
       const prod = await prisma.product.findUnique({ where: { id: item.productId } });
       if (!prod) {
-        return res.status(400).json({ success: false, message: `Product not found: ${item.productId}` });
+        return res.status(400).json({
+          success: false,
+          message: `Product not found: ${item.productId}`
+        });
       }
     }
 
-    // Construye el bloque de usuario solo si viene userId válido y existe
+    // Relación opcional con usuario existente
     let userData = {};
     if (userId) {
-      const userExists = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true }
-      });
-
+      const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
       if (userExists) {
-        // Opción segura: relacionar por connect (no pases userId scalar a la vez)
         userData = { user: { connect: { id: userId } } };
-      } else {
-        // Caso mixto prod/dev: trátalo como invitado (NO conectes, NO pases userId)
-        // Si prefieres estrictos, puedes en su lugar hacer: return res.status(400)...
-        userData = {};
       }
     }
 
+    // Crea la orden con los nuevos campos
     const order = await prisma.order.create({
       data: {
         orderNumber,
         status: 'PAID',
-        subtotal,
-        totalAmount: amount,
-        paymentMethod: "Stripe",
+        subtotal: Number(subtotal),
+        totalAmount: Number(amount),
+        paymentMethod: 'Stripe',
         stripePaymentIntentId: paymentIntent.id,
+
         customerName,
-        customerEmail,
-        specifications,
-        customerPhone,
-        customerAddress,
         customerLastname: lastName,
-        billingState,
+        customerEmail,
+        customerPhone,
+
+        customerAddress,                // line1
+        apartment: apartment ?? null,   // line2
+        company: company ?? null,
         billingCity,
-        ...userData, // <-- solo se añade si procede
+        billingState,
+        zipcode,                        // <-- NUEVO
+
+        specifications,
+
+        ...userData,
+
         items: {
-          create: items.map(item => ({
-            product: { connect: { id: item.productId } },
-            quantity: item.quantity,
-            price: item.price,
-            chosenOptions: item.options ?? null,
+          create: items.map(i => ({
+            product: { connect: { id: i.productId } },
+            quantity: Number(i.quantity),
+            price: Number(i.price),
+            chosenOptions: i.options ?? null
           }))
         }
       },
       include: { items: true }
     });
-
+   await sendOrderConfirmation({ sendEmail }, { order, logoUrl: process.env.ASSETS_URL });
     return res.status(201).json(order);
   } catch (error) {
     console.error('Error to create order:', error);
     return res.status(500).json({ success: false, message: error.message, error: error.message });
   }
 };
+
 
 async function getOrders(req, res) {
     const { status, customerType, dateFilter, page = 1, perPage = 20 ,  orderNumber,origin} = req.query;

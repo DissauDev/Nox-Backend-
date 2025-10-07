@@ -6,7 +6,7 @@ const PRODUCT_HEADERS = [
   'name',
   'description',
   'price',
-  'sellPrice',
+  'salePrice',
   'specifications',
   'options_json',
   'category',
@@ -57,7 +57,7 @@ function productToRow(p) {
     p.name ?? '',
     p.description ?? '',
     Number(p.price ?? 0),
-    p.sellPrice == null ? '' : Number(p.sellPrice),
+    p.salePrice == null ? '' : Number(p.salePrice),
     p.specifications ?? '',
     optionsJson,
     p.category?.name ?? '',
@@ -139,7 +139,7 @@ async function exportCsvPost(req, res) {
     const text = toDelimited(rows, { delimiter });
     const baseName = entity.toLowerCase() + 's_export_' + stamp;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${baseName}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${entity}_${baseName}.csv"`);
     return res.status(200).send(text);
   } catch (err) {
     console.error('exportCsvPost error:', err);
