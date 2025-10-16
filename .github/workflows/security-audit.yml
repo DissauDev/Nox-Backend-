@@ -11,6 +11,6 @@ jobs:
       - name: Run npm audit
         run: npm audit --audit-level=moderate
       - name: Secret scan
-        uses: trufflesecurity/trufflehog@v3
+        uses: trufflesecurity/trufflehog
         with:
           path: .
