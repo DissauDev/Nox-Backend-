@@ -18,32 +18,38 @@ model Category {
   longDescription  String
   createdAt        DateTime      @default(now())
   products         Product[]
-  sortOrder        Int           @default(0) // ✅ Nuevo campo
+  sortOrder        Int           @default(1)
+
+  @@index([sortOrder, name])
 }
 
 /// Producto principal
 model Product {
-  id             String          @id @default(uuid())
-  name           String          @unique
-  price          Float
-  salePrice      Float?          @map("sellPrice")
-  specifications String?
-  description    String?
-  imageLeft      Json? // { url, blurHash }
-  imageRight     Json?
-  type           ProductType     @default(REGULAR)
-  status         ProductStatus   @default(AVAILABLE)
-  categoryId     String
-  category       Category        @relation(fields: [categoryId], references: [id])
-  options        ProductOption[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  OrderItem      OrderItem[]
-
+  id                  String          @id @default(uuid())
+  name                String          @unique
+  price               Float
+  salePrice           Float?          @map("sellPrice")
+  specifications      String?
+  description         String?
+  imageLeft           Json? // { url, blurHash }
+  imageRight          Json?
+  type                ProductType     @default(REGULAR)
+  status              ProductStatus   @default(AVAILABLE)
+  categoryId          String
+  category            Category        @relation(fields: [categoryId], references: [id])
+  options             ProductOption[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  OrderItem           OrderItem[]
+  sortOrder           Int             @default(1)
   OptionValue         OptionValue[]
-  isOptionItem        Boolean       @default(false) // checkbox “usar como opción”
-  packOptionSurcharge Float         @default(0) // “precio para la caja”
+  isOptionItem        Boolean         @default(false) // checkbox “usar como opción”
+  packOptionSurcharge Float           @default(0) // “precio para la caja”
   packMaxItems        Int?
+
+  @@index([status])
+  @@index([categoryId, sortOrder, name]) // orden y búsquedas por categoría
+  @@index([name])
 }
 
 /// Relación muchos-a-muchos para asignar grupos de opciones a cada producto
@@ -54,6 +60,9 @@ model ProductOption {
   product   Product              @relation(fields: [productId], references: [id])
   group     OptionGroup          @relation(fields: [groupId], references: [id])
   values    ProductOptionValue[]
+  sortOrder Int                  @default(1) // ✅ orden del grupo dentro de ESTE producto
+
+  @@index([productId, sortOrder])
 }
 
 /// Valores seleccionables de un producto (cada vez que el cliente elige uno)
@@ -75,7 +84,8 @@ model OptionGroup {
   productOptions ProductOption[] // relación muchos a muchos con productos
   isAvailable    Boolean         @default(true)
   OptionValue    OptionValue[]
-  showImages     Boolean         @default(true) // ✅ NUEVO CAMPO
+  showImages     Boolean         @default(true)
+  selectionTitle String? // p. ej. “Select your scoop flavors”
 }
 
 model OptionValue {
@@ -88,10 +98,12 @@ model OptionValue {
   description        String               @default("")
   ProductOptionValue ProductOptionValue[]
   isAvailable        Boolean              @default(true)
+  productRef         Product?             @relation(fields: [productRefId], references: [id])
+  productRefId       String? // Si no es null, esta opción representa un producto existente
+  sortOrder          Int                  @default(1) // ✅ orden del valor dentro del grupo (global)
 
-  /// NUEVO: relación opcional con producto real
-  productRef   Product? @relation(fields: [productRefId], references: [id])
-  productRefId String? // Si no es null, esta opción representa un producto existente
+  @@index([groupId, sortOrder, name])
+  @@index([groupId, productRefId])
 }
 
 /// Detalle de los items en una orden

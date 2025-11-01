@@ -13,13 +13,17 @@ const {
   patchOptionValueStatus,
   bulkUpdateOptionValuesStatus,
   bulkCloneOptionValue,
-  bulkDeleteOptionValuesByName
-
+  bulkAddonGroups,
+  bulkDeleteOptionValuesByName,
+ getAllOptValandPtslikeOpt
 } = require('../controllers/optionGroupController');
 
 // OptionGroup CRUD
 router.post('/option-group',                   createOptionGroup);
+router.post('/option-groups/:groupId/option-values/bulk-add', bulkAddonGroups);
+
 router.get('/option-group',                    getAllOptionGroups);
+router.get('/option-group/all-opt',                    getAllOptValandPtslikeOpt);
 router.get('/option-group/:groupId',            getOptionGroupById);
 router.put('/option-group/:groupId',            updateOptionGroup);
 router.delete('/option-group/:groupId',         deleteOptionGroup);

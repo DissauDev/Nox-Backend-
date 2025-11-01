@@ -6,6 +6,7 @@ const { ALLOWED_STATUSES } = require('../utils/AllowedStatus');
 const { generateUniqueOrderNumber } = require('../utils/generateOrderNumber');
 const { sendOrderConfirmation } = require('../utils/orderEmail.util');
 const { sendEmail } = require('../utils/email');  
+const { sendAdminNewOrderNotification } = require('../utils/emailToOrderAdmin');
 
 const createOrder = async (req, res) => {
   const {
@@ -121,6 +122,7 @@ const createOrder = async (req, res) => {
       include: { items: true }
     });
    await sendOrderConfirmation({ sendEmail }, { order, logoUrl: process.env.ASSETS_URL });
+   await sendAdminNewOrderNotification({sendEmail}, {order, logoUrl: process.env.ASSETS_URL});
     return res.status(201).json(order);
   } catch (error) {
     console.error('Error to create order:', error);

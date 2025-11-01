@@ -1,3 +1,4 @@
+
 const { prisma } = require('../lib/prisma');
  async function getMenu(req, res) {
   try {
@@ -22,6 +23,7 @@ const { prisma } = require('../lib/prisma');
 const products = await prisma.product.findMany({
   where: {
     status:     "AVAILABLE",
+    
     categoryId: { in: dbCategories.map(c => c.id) }
   },
 include: {
@@ -31,8 +33,11 @@ include: {
     }
   }
 },
-
-  orderBy: { createdAt: "asc" }
+ orderBy: [
+        { category: { sortOrder: 'asc' } }, // orden de su categoría
+        { sortOrder: 'asc' },               // orden interno en la categoría
+        { name: 'asc' }                     // desempate estable
+      ]
 });
 // 1) agrupar productos por categoría
 

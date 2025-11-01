@@ -1,4 +1,6 @@
- const {prisma} = require('../lib/prisma')
+ const {prisma} = require('../lib/prisma');
+const { optionSource } = require('./optionGroup/getAllOptions');
+const { bulkAdd } = require('./optionGroup/postOpt&Pts');
 
 async function createOptionGroup(req, res) {
   try {
@@ -10,6 +12,7 @@ async function createOptionGroup(req, res) {
       maxSelectable,
       categoryId,
       minSelectable,
+      selectionTitle
     } = req.body;
 
     // --- Normalización ligera ---
@@ -57,6 +60,7 @@ async function createOptionGroup(req, res) {
         showImages: showImagesNorm ?? (norm.required ?? true),
         minSelectable: norm.minSelectable ?? 1,
         maxSelectable: norm.maxSelectable ?? category.products.length,
+        selectionTitle: selectionTitle ? String(selectionTitle).trim() : null,
         OptionValue: {
           create: category.products.map((p) => ({
             name: p.name,
@@ -89,6 +93,7 @@ async function createOptionGroup(req, res) {
       const data = {
         name: (name && String(name).trim()) || `${original.name} Copy`,
         required: norm.required ?? original.required,
+        selectionTitle: selectionTitle ? String(selectionTitle).trim() : original.selectionTitle,
         showImages: showImagesNorm ?? original.showImages ?? (norm.required ?? original.required),
         minSelectable: norm.minSelectable ?? original.minSelectable,
         maxSelectable: norm.maxSelectable ?? original.maxSelectable,
@@ -118,6 +123,7 @@ async function createOptionGroup(req, res) {
     const data = {
       name: String(name).trim(),
       required: norm.required ?? false,
+      selectionTitle: selectionTitle ? String(selectionTitle).trim() : null,
       showImages: showImagesNorm ?? (norm.required ?? false),
       minSelectable: norm.minSelectable, // si no viene, Prisma usa el default del schema
       maxSelectable: norm.maxSelectable,
@@ -177,6 +183,7 @@ async function updateOptionGroup(req, res) {
       showImages,
       minSelectable,
       maxSelectable,
+      selectionTitle
     } = req.body ?? {};
 
     // Validación: si llegan ambos, min <= max
@@ -192,6 +199,7 @@ async function updateOptionGroup(req, res) {
       where: { id: groupId },
       data: {
         ...(name !== undefined && { name }),
+        ...(selectionTitle !== undefined && {selectionTitle}),
         ...(required !== undefined && { required: Boolean(required) }),
         ...(showImages !== undefined && { showImages: Boolean(showImages) }),
         ...(minSelectable !== undefined && { minSelectable: Number(minSelectable) }),
@@ -803,6 +811,8 @@ async function cloneOptionValueToGroup(req, res) {
 }
 
 
+ const getAllOptValandPtslikeOpt = optionSource;
+ const bulkAddonGroups = bulkAdd;
 
 module.exports = {
   createOptionGroup,
@@ -816,9 +826,11 @@ module.exports = {
   getOptionValueById,
   updateOptionValue,
   deleteOptionValue,
+  bulkAddonGroups,
   createGroupFromCategory,
   patchOptionValueStatus,
   bulkUpdateOptionValuesStatus,
   cloneOptionValueToGroup,
-  bulkDeleteOptionValuesByName
+  bulkDeleteOptionValuesByName,
+  getAllOptValandPtslikeOpt
 };

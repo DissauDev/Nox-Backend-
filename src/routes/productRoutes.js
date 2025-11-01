@@ -9,7 +9,7 @@ const {
     getProductSuggestions,
     deleteProduct,
     updateProductStatus,
- 
+    updateProdSortOrder
   } = require('../controllers/productsController');
   const {
   setProductOptions,
@@ -29,7 +29,7 @@ router.get("/products/:id/suggestions", getProductSuggestions);
 
 router.post('/products/:id/options',   setProductOptions);
 router.get('/products/:id/options',    getProductOptions);
-
+router.patch('/products/:id/sort-order',   updateProdSortOrder );
 
 module.exports = router;
  

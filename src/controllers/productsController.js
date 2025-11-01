@@ -1,230 +1,95 @@
 const {prisma} = require('../lib/prisma')
-const {generateImageData} = require('../middlewares/generateImageData')
 
-
+const {updateProductSortOrder} = require('./products/updateProductSortOrder')
+const {hadleUpdateProduct} = require('./products/hadleUpdateProducts')
+const {handleCreateProduct} = require('./products/handleCreateProduct')
 // Crear Producto
-async function createProduct(req, res) {
-  try {
-    const {
-      name,
-      description,
-      price,
-      salePrice,
-      specifications,
-      options,          // JSON string o array de objetos a crear
-      category,
-      imageLeftUrl,
-      imageRightUrl,
-      type,
-      status,
-        isOptionItem,            // boolean (checkbox)
-      packOptionSurcharge, 
-      packMaxItems
-    } = req.body;
-
-    
-    // 1) Unicidad por name
-    const existing = await prisma.product.findUnique({ where: { name } });
-    if (existing) {
-      return res.status(400).json({ message: 'There is a product whit same name' });
-    }
-
-    // 2) Validar categoría
-    const cat = await prisma.category.findUnique({ where: { name: category } });
-    if (!cat) {
-      return res.status(400).json({ message: 'Invalid Category' });
-    }
-
-
-    // 3) Procesar imágenes
-    const imageLeft = await generateImageData(imageLeftUrl);
-    if (!imageLeft) {
-        return res.status(400).json({ message: 'Error to process left image' });
-    }
-    let imageRight = null;
-    if (imageRightUrl) {
-      imageRight = await generateImageData(imageRightUrl);
-      if (!imageRight) {
-        return res.status(400).json({ message: 'Error to process right image' });
-      }
-    }
-
-    // 4) Parseo de options si vienen
-    let parsedOptions;
-    if (options) {
-      try {
-        parsedOptions = typeof options === 'string'
-          ? JSON.parse(options)
-          : options;
-        // parsedOptions debe ser un array de objetos con la forma
-        // { groupId: "...", values: [ { id: "valueId1" }, { id: "valueId2" } ] }
-      } catch {
-        return res.status(400).json({ message: 'Field options most be valid  JSON ' });
-      }
-    }
-
-    // 5) Montar el objeto data, **sin** incluir `options` si está vacío
-    const data = {
-      name,
-      description: description || undefined,
-      price: parseFloat(price),
-      salePrice: salePrice != null ? parseFloat(salePrice) : undefined,
-      specifications: specifications || undefined,
-        category: {
-        connect: { id: cat.id }
-      },
-      imageLeft,
-      imageRight: imageRight || undefined,
-      type: type || undefined,
-      status: status || undefined,
-      isOptionItem: isOptionItem || false,
-      packOptionSurcharge: packOptionSurcharge || 0,
-      packMaxItems
-    };
-
-  // 6) Creación en BD (sin options)
- const product = await prisma.product.create({ data });
-
- // 7) Ahora sí añadimos las opciones con createMany
- if (Array.isArray(parsedOptions) && parsedOptions.length > 0) {
-   await prisma.productOption.createMany({
-     data: parsedOptions.map((groupId) => ({
-       productId: product.id,
-       groupId,
-    })),
-   });
- }
-
- return res.status(201).json(product);
-
-  } catch (err) {
-    console.error('Error creando producto:', err);
- res.status(500).json({ message: 'Internal server error' });
-  }
-}
+const createProduct = handleCreateProduct;
 // 2. Obtener Todos los Productos (GET)
 async function getAllProducts(req, res) {
   try {
-    const products = await prisma.product.findMany({
-      include: {
-        category: {
-          select: { name: true }
-        },
-        // <-- Añadido para traer los option groups asociados
-        options: {
-          select: {
-            groupId: true
-          }
-        }
-      }
-    });
+    const {
+      page = '1',
+      pageSize = '10',
+      status,           // "AVAILABLE" | "DISABLED" | "OUT_OF_STOCK"
+      categoryId,       // string
+      categoryName,     // string (exacto) o podrías hacer contains
+      q,                // búsqueda por nombre (contains)
+      type,             // "REGULAR" | "SEASONAL"
+      sortBy,           // "name" | "price" | "createdAt" | "salePrice" | "sortOrder"
+      sortDir,          // "asc" | "desc"
+    } = req.query;
 
-    res.json(products);
+    const pageNum = Math.max(parseInt(page, 10) || 1, 1);
+    const take = Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 100); // cap 100
+    const skip = (pageNum - 1) * take;
+
+    // where dinámico
+    const where = {
+      ...(status && status !== 'all' ? { status } : {}),
+      ...(type ? { type } : {}),
+      ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}),
+      ...(categoryId ? { categoryId } : {}),
+      ...(categoryName
+        ? { category: { name: categoryName } } // exacto; cambia a contains si quieres
+        : {}),
+    };
+
+    // orderBy estable
+    const orderBy = [
+      { category: { sortOrder: 'asc' } },
+      { sortOrder: 'asc' },
+      { name: 'asc' },
+    ];
+
+    // si el cliente envía sortBy/sortDir válidos, los aplicamos al final
+    const allowedSort = new Set(['name', 'price', 'createdAt', 'salePrice', 'sortOrder']);
+    const dir = sortDir === 'desc' ? 'desc' : 'asc';
+    if (sortBy && allowedSort.has(sortBy)) {
+      // mantener orden por categoría primero; luego criterio custom, luego name
+      orderBy.splice(1, 0, { [sortBy]: dir });
+    }
+
+    // count total
+    const [total, products] = await prisma.$transaction([
+      prisma.product.count({ where }),
+      prisma.product.findMany({
+        where,
+        include: {
+          category: { select: { id: true, name: true, sortOrder: true } },
+          options:  { select: { groupId: true } },
+        },
+        orderBy,
+        skip,
+        take,
+      }),
+    ]);
+
+    const totalPages = Math.ceil(total / take) || 1;
+
+    res.json({
+      meta: {
+        page: pageNum,
+        pageSize: take,
+        total,
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+        sortBy: sortBy || null,
+        sortDir: sortBy ? dir : null,
+      },
+      data: products,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Error to get products" });
   }
 }
 
-
 // Actualizar Producto
-async function updateProduct(req, res) {
-  try {
-    const { id } = req.params;
-    const existing = await prisma.product.findUnique({ where: { id } });
-    if (!existing) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
+ const updateProduct = hadleUpdateProduct;
 
-    const {
-      name,
-      description,
-      price,
-      salePrice,
-      specifications,
-      options,
-      category,
-      imageLeftUrl,
-      imageRightUrl,
-      type,
-      status,
-        isOptionItem,       
-      packOptionSurcharge,
-      packMaxItems 
-    } = req.body;
-
-    const updateData = {};
-
-    if (name && name !== existing.name) {
-      const clash = await prisma.product.findUnique({ where: { name } });
-      if (clash) {
-        return res.status(400).json({ message: 'There is a product whith the same name' });
-      }
-      updateData.name = name;
-    }
-
-    if (description !== undefined) updateData.description = description;
-    if (price !== undefined) updateData.price = parseFloat(price);
-    if (salePrice !== undefined) updateData.salePrice = parseFloat(salePrice);
-    if (specifications !== undefined) updateData.specifications = specifications;
-
-    if (options !== undefined) {
-  // 1. Asegurarte de tener un array de IDs
-  const parsedOptions = typeof options === 'string'
-    ? JSON.parse(options)
-    : options;
-
-  // 2. Borra las antiguas y crea las nuevas
-  updateData.options = {
-    deleteMany: {}, // quita todas las relaciones previas
-    create: parsedOptions.map((groupId) => ({
-      group: { connect: { id: groupId } }
-    }))
-  };
-}
-
-    if (category) {
-      const cat = await prisma.category.findUnique({ where: { name: category } });
-      if (!cat) {
-        return res.status(400).json({ message: 'Invalid Category' });
-      }
-      updateData.category = {
-    connect: { id: cat.id }
-  };
-    }
-
-    if (imageLeftUrl) {
-      const imgL = await generateImageData(imageLeftUrl);
-      if (!imgL) return res.status(400).json({ message: 'Error to get imageLeft' });
-      updateData.imageLeft = imgL;
-    }
-
-    if (imageRightUrl) {
-      const imgR = await generateImageData(imageRightUrl);
-      if (!imgR) return res.status(400).json({ message: 'Error to get image right' });
-      updateData.imageRight = imgR;
-    }
-
-    if (type) updateData.type = type;
-    if (status) updateData.status = status;
-
-    if(isOptionItem) updateData.isOptionItem = isOptionItem;
-    if(packOptionSurcharge) updateData.packOptionSurcharge = packOptionSurcharge;
- if(packMaxItems) updateData.packMaxItems = packMaxItems;
-    const updated = await prisma.product.update({
-      where: { id },
-      data: updateData,
-    });
-
-    return res.json(updated);
-
-  } catch (err) {
-    console.error('Error actualizando producto:', err);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-}
-
-
+// GET /products/:id
 async function getProductById(req, res) {
   try {
     const { id } = req.params;
@@ -232,14 +97,23 @@ async function getProductById(req, res) {
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
-        // 1) Nombre e id de la categoría
+        // 1) Categoría
         category: {
           select: { id: true, name: true },
         },
-        // 2) Grupos de opciones asignados al producto
+
         options: {
-         where:{group:{OptionValue:{some:{isAvailable:true}}}},
-          include: {
+          where: {
+            group: {
+              isAvailable: true,
+              OptionValue: { some: { isAvailable: true } },
+            },
+          },
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            id: true,
+            sortOrder: true, 
+            groupId: true,
             group: {
               select: {
                 id: true,
@@ -247,33 +121,39 @@ async function getProductById(req, res) {
                 required: true,
                 minSelectable: true,
                 maxSelectable: true,
+                selectionTitle:true,
                 showImages: true,
-                // aquí traemos los valores posibles del grupo
+                // Lista de valores del grupo (solo disponibles)
                 OptionValue: {
                   where: { isAvailable: true },
+                  orderBy: [
+                    { sortOrder: 'asc' }, // <<--- IMPORTANTE: orden principal
+                    { name: 'asc' },      // fallback estable por nombre
+                  ],
                   select: {
                     id: true,
                     name: true,
                     extraPrice: true,
                     imageUrl: true,
-                    description: true
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+                    description: true,
+                    sortOrder: true, // <<--- IMPORTANTE: exponer sortOrder del OptionValue
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.status(200).json(product);
+    return res.status(200).json(product);
   } catch (error) {
-    console.error(error);
-     return res.status(500).json({ message: 'Internal server error' });
+    console.error('getProductById error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 }
 
@@ -382,13 +262,13 @@ async function getProductSuggestions(req, res) {
   }
 }
 
-
+const updateProdSortOrder = updateProductSortOrder;
 
 module.exports = {
   createProduct,
   getAllProducts,
   updateProduct,
-
+updateProdSortOrder,
   deleteProduct,
   getProductById,
   updateProductStatus,
