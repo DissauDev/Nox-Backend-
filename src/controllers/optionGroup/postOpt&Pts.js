@@ -23,6 +23,12 @@ const ItemOptionSchema = z.object({
     .optional(),
 });
 
+function getImageUrlFromJson(json) {
+  if (!json || typeof json !== "object") return undefined;
+  const maybe = json ;
+  return typeof maybe.url === "string" && maybe.url.trim() ? maybe.url : undefined;
+}
+
 const bulkAddSchema = z.object({
   items: z.array(z.union([ItemProductSchema, ItemOptionSchema])).min(1),
   skipExisting: z.boolean().optional().default(true),
@@ -32,7 +38,7 @@ const bulkAdd = async (req, res) => {
   try {
     const { groupId } = z.object({ groupId: z.string().uuid() }).parse(req.params);
     const body = bulkAddSchema.parse(req.body);
-
+    
     // Validar grupo
     const group = await prisma.optionGroup.findUnique({
       where: { id: groupId },
@@ -106,7 +112,11 @@ const bulkAdd = async (req, res) => {
         const nameKey = name.toLowerCase();
         const extra = item.extraPrice ?? p.packOptionSurcharge ?? 0;
         const desc = item.description ?? p.description ?? "";
-        const img = item.imageUrl ?? undefined;
+    const img =
+      item.imageUrl ??
+      getImageUrlFromJson(p.imageLeft) ??
+      undefined;
+
 
         if (body.skipExisting) {
           if (existsByName.has(nameKey)) {
