@@ -24,9 +24,14 @@ async function hadleUpdateProduct(req, res) {
       isOptionItem,
       packOptionSurcharge,
       packMaxItems,
-      sortOrder,          // <-- sortOrder del producto dentro de su categoría (opcional)
+      sortOrder,   
+      hasSpecifications,
+       specificationsTitle        // <-- sortOrder del producto dentro de su categoría (opcional)
     } = req.body;
 
+    console.log('Updating product:', {
+      specificationsTitle,
+      hasSpecifications,})
     // ----- Normalizaciones / Validaciones básicas
     const updateData = {};
 
@@ -75,7 +80,13 @@ async function hadleUpdateProduct(req, res) {
     if (isOptionItem !== undefined) updateData.isOptionItem = !!isOptionItem;
     if (packOptionSurcharge !== undefined) updateData.packOptionSurcharge = Number(packOptionSurcharge) || 0;
     if (packMaxItems !== undefined) updateData.packMaxItems = packMaxItems === null ? null : Number(packMaxItems);
+    if (hasSpecifications !== undefined) updateData.hasSpecifications = !!hasSpecifications;
+if (specificationsTitle !== undefined) {
+  updateData.specificationsTitle =
+    specificationsTitle === "" ? null : String(specificationsTitle);
+}
 
+    
     // sortOrder del PRODUCTO dentro de su categoría
     if (sortOrder !== undefined && String(sortOrder).trim() !== '') {
       const n = Number(sortOrder);

@@ -1,6 +1,7 @@
  const {prisma} = require('../lib/prisma');
 const { optionSource } = require('./optionGroup/getAllOptions');
 const { bulkAdd } = require('./optionGroup/postOpt&Pts');
+ const {updateOptionValueSortOrder} = require('./optionGroup/optionSortValue');
 
 async function createOptionGroup(req, res) {
   try {
@@ -328,7 +329,7 @@ async function getAllOptionValues(req, res) {
 
     const values = await prisma.optionValue.findMany({
       where,
-      orderBy: { name: 'asc' }, // orden determinista
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
     });
 
     return res.json(values);
@@ -810,7 +811,7 @@ async function cloneOptionValueToGroup(req, res) {
   }
 }
 
-
+ const sortOptionValues = updateOptionValueSortOrder;
  const getAllOptValandPtslikeOpt = optionSource;
  const bulkAddonGroups = bulkAdd;
 
@@ -832,5 +833,6 @@ module.exports = {
   bulkUpdateOptionValuesStatus,
   cloneOptionValueToGroup,
   bulkDeleteOptionValuesByName,
-  getAllOptValandPtslikeOpt
+  getAllOptValandPtslikeOpt,
+  sortOptionValues
 };

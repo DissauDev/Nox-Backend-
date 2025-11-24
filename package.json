@@ -2,21 +2,19 @@
   "name": "nox-backend",
   "version": "1.0.0",
   "main": "index.js",
-"scripts": {
-  "start": "nodemon index.js",
-  "test": "dotenv -e .env.test -- jest --runInBand",
-  "db:migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
-  "test:db:reset": "dotenv -e .env.test -- prisma migrate reset --force --skip-generate --skip-seed"
-}
-,
-  "prisma": {
-    "seed": "node prisma/seed.js"
+  "scripts": {
+    "start": "nodemon index.js",
+    "test": "dotenv -e .env.test -- jest --runInBand",
+    "db:migrate:test": "dotenv -e .env.test -- prisma migrate deploy",
+    "test:db:reset": "dotenv -e .env.test -- prisma migrate reset --force --skip-generate --skip-seed"
   },
+  "prisma": { },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@asteasolutions/zod-to-openapi": "^8.1.0",
     "@prisma/client": "^6.3.0",
     "axios": "^1.8.4",
     "bcrypt": "^5.1.1",
@@ -39,14 +37,20 @@
     "redux-persist": "^6.0.0",
     "sharp": "^0.33.5",
     "stripe": "^17.7.0",
-    "zod": "^4.0.17"
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.1.12",
+    "zod-openapi": "^5.4.3"
   },
   "devDependencies": {
     "cross-env": "^10.0.0",
     "dotenv-cli": "^10.0.0",
     "jest": "^30.1.3",
     "nodemon": "^3.1.9",
+    "prisma-zod-generator": "^1.31.7",
     "supertest": "^7.1.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
 }

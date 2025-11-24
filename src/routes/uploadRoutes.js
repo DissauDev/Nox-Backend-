@@ -29,15 +29,16 @@ const upload = multer({
   },
 });
 
-// ===== Rutas existentes =====
 router.post('/upload/create', upload.single('image'), uploadController.uploadImage);
+
 router.get('/upload/getImages', uploadController.getImages);
+
 router.get('/upload/:filename', uploadController.getImageDetails);
+
 router.delete('/upload/:filename', uploadController.deleteImage);
+
 router.put('/upload/:filename', upload.single('image'), uploadController.updateImage);
 
-// ===== NUEVA: Subida por bulto =====
-// el campo debe llamarse "images" (FormData.append('images', file))
 router.post(
   '/upload/bulk',
   upload.array('images', 10), // 👈 tope adicional aquí

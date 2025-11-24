@@ -127,8 +127,8 @@ async function getProductById(req, res) {
                 OptionValue: {
                   where: { isAvailable: true },
                   orderBy: [
-                    { sortOrder: 'asc' }, // <<--- IMPORTANTE: orden principal
-                    { name: 'asc' },      // fallback estable por nombre
+                    { sortOrder: 'asc' }, 
+                    { name: 'asc' },      
                   ],
                   select: {
                     id: true,
@@ -136,7 +136,7 @@ async function getProductById(req, res) {
                     extraPrice: true,
                     imageUrl: true,
                     description: true,
-                    sortOrder: true, // <<--- IMPORTANTE: exponer sortOrder del OptionValue
+                    sortOrder: true, 
                   },
                 },
               },

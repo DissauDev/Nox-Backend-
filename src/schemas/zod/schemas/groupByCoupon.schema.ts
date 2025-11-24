@@ -1,0 +1,15 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { CouponWhereInputObjectSchema as CouponWhereInputObjectSchema } from './objects/CouponWhereInput.schema';
+import { CouponOrderByWithAggregationInputObjectSchema as CouponOrderByWithAggregationInputObjectSchema } from './objects/CouponOrderByWithAggregationInput.schema';
+import { CouponScalarWhereWithAggregatesInputObjectSchema as CouponScalarWhereWithAggregatesInputObjectSchema } from './objects/CouponScalarWhereWithAggregatesInput.schema';
+import { CouponScalarFieldEnumSchema } from './enums/CouponScalarFieldEnum.schema';
+import { CouponCountAggregateInputObjectSchema as CouponCountAggregateInputObjectSchema } from './objects/CouponCountAggregateInput.schema';
+import { CouponMinAggregateInputObjectSchema as CouponMinAggregateInputObjectSchema } from './objects/CouponMinAggregateInput.schema';
+import { CouponMaxAggregateInputObjectSchema as CouponMaxAggregateInputObjectSchema } from './objects/CouponMaxAggregateInput.schema';
+import { CouponAvgAggregateInputObjectSchema as CouponAvgAggregateInputObjectSchema } from './objects/CouponAvgAggregateInput.schema';
+import { CouponSumAggregateInputObjectSchema as CouponSumAggregateInputObjectSchema } from './objects/CouponSumAggregateInput.schema';
+
+export const CouponGroupBySchema: z.ZodType<Prisma.CouponGroupByArgs> = z.object({ where: CouponWhereInputObjectSchema.optional(), orderBy: z.union([CouponOrderByWithAggregationInputObjectSchema, CouponOrderByWithAggregationInputObjectSchema.array()]).optional(), having: CouponScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(CouponScalarFieldEnumSchema), _count: z.union([ z.literal(true), CouponCountAggregateInputObjectSchema ]).optional(), _min: CouponMinAggregateInputObjectSchema.optional(), _max: CouponMaxAggregateInputObjectSchema.optional(), _avg: CouponAvgAggregateInputObjectSchema.optional(), _sum: CouponSumAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.CouponGroupByArgs>;
+
+export const CouponGroupByZodSchema = z.object({ where: CouponWhereInputObjectSchema.optional(), orderBy: z.union([CouponOrderByWithAggregationInputObjectSchema, CouponOrderByWithAggregationInputObjectSchema.array()]).optional(), having: CouponScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(CouponScalarFieldEnumSchema), _count: z.union([ z.literal(true), CouponCountAggregateInputObjectSchema ]).optional(), _min: CouponMinAggregateInputObjectSchema.optional(), _max: CouponMaxAggregateInputObjectSchema.optional(), _avg: CouponAvgAggregateInputObjectSchema.optional(), _sum: CouponSumAggregateInputObjectSchema.optional() }).strict();

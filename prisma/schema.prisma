@@ -46,6 +46,8 @@ model Product {
   isOptionItem        Boolean         @default(false) // checkbox “usar como opción”
   packOptionSurcharge Float           @default(0) // “precio para la caja”
   packMaxItems        Int?
+  hasSpecifications   Boolean         @default(false) // muestra el campo de especificaciones
+  specificationsTitle String?         @default("Specifications") // título personalizado para las especificaciones
 
   @@index([status])
   @@index([categoryId, sortOrder, name]) // orden y búsquedas por categoría
@@ -108,14 +110,15 @@ model OptionValue {
 
 /// Detalle de los items en una orden
 model OrderItem {
-  id            String  @id @default(uuid())
-  orderId       String
-  productId     String
-  quantity      Int
-  price         Float
-  chosenOptions Json?
-  order         Order   @relation(fields: [orderId], references: [id])
-  product       Product @relation(fields: [productId], references: [id])
+  id             String  @id @default(uuid())
+  orderId        String
+  productId      String
+  quantity       Int
+  price          Float
+  chosenOptions  Json?
+  order          Order   @relation(fields: [orderId], references: [id])
+  product        Product @relation(fields: [productId], references: [id])
+  specifications String?
 }
 
 /// Orden principal

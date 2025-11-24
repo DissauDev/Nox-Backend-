@@ -1,0 +1,10 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { CouponRedemptionOrderByWithRelationInputObjectSchema as CouponRedemptionOrderByWithRelationInputObjectSchema } from './objects/CouponRedemptionOrderByWithRelationInput.schema';
+import { CouponRedemptionWhereInputObjectSchema as CouponRedemptionWhereInputObjectSchema } from './objects/CouponRedemptionWhereInput.schema';
+import { CouponRedemptionWhereUniqueInputObjectSchema as CouponRedemptionWhereUniqueInputObjectSchema } from './objects/CouponRedemptionWhereUniqueInput.schema';
+import { CouponRedemptionCountAggregateInputObjectSchema as CouponRedemptionCountAggregateInputObjectSchema } from './objects/CouponRedemptionCountAggregateInput.schema';
+
+export const CouponRedemptionCountSchema: z.ZodType<Prisma.CouponRedemptionCountArgs> = z.object({ orderBy: z.union([CouponRedemptionOrderByWithRelationInputObjectSchema, CouponRedemptionOrderByWithRelationInputObjectSchema.array()]).optional(), where: CouponRedemptionWhereInputObjectSchema.optional(), cursor: CouponRedemptionWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), select: z.union([ z.literal(true), CouponRedemptionCountAggregateInputObjectSchema ]).optional() }).strict() as unknown as z.ZodType<Prisma.CouponRedemptionCountArgs>;
+
+export const CouponRedemptionCountZodSchema = z.object({ orderBy: z.union([CouponRedemptionOrderByWithRelationInputObjectSchema, CouponRedemptionOrderByWithRelationInputObjectSchema.array()]).optional(), where: CouponRedemptionWhereInputObjectSchema.optional(), cursor: CouponRedemptionWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), select: z.union([ z.literal(true), CouponRedemptionCountAggregateInputObjectSchema ]).optional() }).strict();

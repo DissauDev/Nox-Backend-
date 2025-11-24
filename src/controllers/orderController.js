@@ -115,7 +115,8 @@ const createOrder = async (req, res) => {
             product: { connect: { id: i.productId } },
             quantity: Number(i.quantity),
             price: Number(i.price),
-            chosenOptions: i.options ?? null
+            chosenOptions: i.options ?? null,
+            specifications: i?.specifications || ""
           }))
         }
       },
@@ -414,7 +415,6 @@ const deleteOrder = async (req, res) => {
   }
 };
 
-
 const refundOrder = async (req, res) => {
    
   const { id } = req.params;               // id de la orden en tu base
@@ -471,7 +471,6 @@ const refundOrder = async (req, res) => {
     });
   }
 };
-
 
 
 module.exports = {

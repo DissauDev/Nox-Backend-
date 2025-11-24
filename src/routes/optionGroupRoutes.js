@@ -15,7 +15,8 @@ const {
   bulkCloneOptionValue,
   bulkAddonGroups,
   bulkDeleteOptionValuesByName,
- getAllOptValandPtslikeOpt
+ getAllOptValandPtslikeOpt,
+ sortOptionValues
 } = require('../controllers/optionGroupController');
 
 // OptionGroup CRUD
@@ -41,4 +42,5 @@ router.get('/option-group/:groupId/values/:valueId',  getOptionValueById);
 router.put('/option-group/:groupId/values/:valueId',  updateOptionValue);
 router.delete('/option-group/:groupId/values/:valueId', deleteOptionValue);
 
+router.patch("/option-group/:groupId/values/:valueId/sort-order", sortOptionValues);
 module.exports = router;

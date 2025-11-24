@@ -1,15 +1,24 @@
-// routes/analytics.js
-const express = require('express')
-const { getDashboardStats, getProductAnalytics,
-     getPerformance,
-     getCategorySales,getSalesTrend } = require('../controllers/analyticsControllers')
-const router = express.Router()
+const express = require('express');
+const {
+  getDashboardStats,
+  getProductAnalytics,
+  getPerformance,
+  getCategorySales,
+  getSalesTrend
+} = require('../controllers/analyticsControllers');
 
-// Ejemplo: GET /api/analytics/overview?period=Week
-router.get('/analytics/overview', getDashboardStats);
-router.get('/analytics/products', getProductAnalytics);
+const router = express.Router();
+
+
+router.get('/analytics/performance', getPerformance);
+
+
 router.get('/analytics/categories-sales', getCategorySales);
-router.get('/analytics/sales-trend', getSalesTrend);
-router.get('/analytics/performance', getPerformance)
 
-module.exports = router
+router.get('/analytics/overview', getDashboardStats);
+
+router.get('/analytics/products', getProductAnalytics);
+
+router.get('/analytics/sales-trend', getSalesTrend);
+
+module.exports = router;

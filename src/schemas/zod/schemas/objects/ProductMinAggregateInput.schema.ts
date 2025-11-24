@@ -1,0 +1,23 @@
+import * as z from 'zod';
+import type { Prisma } from '@prisma/client';
+
+
+const makeSchema = () => z.object({
+  id: z.literal(true).optional(),
+  name: z.literal(true).optional(),
+  price: z.literal(true).optional(),
+  salePrice: z.literal(true).optional(),
+  specifications: z.literal(true).optional(),
+  description: z.literal(true).optional(),
+  type: z.literal(true).optional(),
+  status: z.literal(true).optional(),
+  categoryId: z.literal(true).optional(),
+  createdAt: z.literal(true).optional(),
+  updatedAt: z.literal(true).optional(),
+  sortOrder: z.literal(true).optional(),
+  isOptionItem: z.literal(true).optional(),
+  packOptionSurcharge: z.literal(true).optional(),
+  packMaxItems: z.literal(true).optional()
+}).strict();
+export const ProductMinAggregateInputObjectSchema: z.ZodType<Prisma.ProductMinAggregateInputType> = makeSchema() as unknown as z.ZodType<Prisma.ProductMinAggregateInputType>;
+export const ProductMinAggregateInputObjectZodSchema = makeSchema();

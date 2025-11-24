@@ -1,0 +1,14 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { StoreConfigOrderByWithRelationInputObjectSchema as StoreConfigOrderByWithRelationInputObjectSchema } from './objects/StoreConfigOrderByWithRelationInput.schema';
+import { StoreConfigWhereInputObjectSchema as StoreConfigWhereInputObjectSchema } from './objects/StoreConfigWhereInput.schema';
+import { StoreConfigWhereUniqueInputObjectSchema as StoreConfigWhereUniqueInputObjectSchema } from './objects/StoreConfigWhereUniqueInput.schema';
+import { StoreConfigCountAggregateInputObjectSchema as StoreConfigCountAggregateInputObjectSchema } from './objects/StoreConfigCountAggregateInput.schema';
+import { StoreConfigMinAggregateInputObjectSchema as StoreConfigMinAggregateInputObjectSchema } from './objects/StoreConfigMinAggregateInput.schema';
+import { StoreConfigMaxAggregateInputObjectSchema as StoreConfigMaxAggregateInputObjectSchema } from './objects/StoreConfigMaxAggregateInput.schema';
+import { StoreConfigAvgAggregateInputObjectSchema as StoreConfigAvgAggregateInputObjectSchema } from './objects/StoreConfigAvgAggregateInput.schema';
+import { StoreConfigSumAggregateInputObjectSchema as StoreConfigSumAggregateInputObjectSchema } from './objects/StoreConfigSumAggregateInput.schema';
+
+export const StoreConfigAggregateSchema: z.ZodType<Prisma.StoreConfigAggregateArgs> = z.object({ orderBy: z.union([StoreConfigOrderByWithRelationInputObjectSchema, StoreConfigOrderByWithRelationInputObjectSchema.array()]).optional(), where: StoreConfigWhereInputObjectSchema.optional(), cursor: StoreConfigWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), _count: z.union([ z.literal(true), StoreConfigCountAggregateInputObjectSchema ]).optional(), _min: StoreConfigMinAggregateInputObjectSchema.optional(), _max: StoreConfigMaxAggregateInputObjectSchema.optional(), _avg: StoreConfigAvgAggregateInputObjectSchema.optional(), _sum: StoreConfigSumAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.StoreConfigAggregateArgs>;
+
+export const StoreConfigAggregateZodSchema = z.object({ orderBy: z.union([StoreConfigOrderByWithRelationInputObjectSchema, StoreConfigOrderByWithRelationInputObjectSchema.array()]).optional(), where: StoreConfigWhereInputObjectSchema.optional(), cursor: StoreConfigWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), _count: z.union([ z.literal(true), StoreConfigCountAggregateInputObjectSchema ]).optional(), _min: StoreConfigMinAggregateInputObjectSchema.optional(), _max: StoreConfigMaxAggregateInputObjectSchema.optional(), _avg: StoreConfigAvgAggregateInputObjectSchema.optional(), _sum: StoreConfigSumAggregateInputObjectSchema.optional() }).strict();

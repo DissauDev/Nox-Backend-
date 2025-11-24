@@ -1,0 +1,13 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { CouponRedemptionWhereInputObjectSchema as CouponRedemptionWhereInputObjectSchema } from './objects/CouponRedemptionWhereInput.schema';
+import { CouponRedemptionOrderByWithAggregationInputObjectSchema as CouponRedemptionOrderByWithAggregationInputObjectSchema } from './objects/CouponRedemptionOrderByWithAggregationInput.schema';
+import { CouponRedemptionScalarWhereWithAggregatesInputObjectSchema as CouponRedemptionScalarWhereWithAggregatesInputObjectSchema } from './objects/CouponRedemptionScalarWhereWithAggregatesInput.schema';
+import { CouponRedemptionScalarFieldEnumSchema } from './enums/CouponRedemptionScalarFieldEnum.schema';
+import { CouponRedemptionCountAggregateInputObjectSchema as CouponRedemptionCountAggregateInputObjectSchema } from './objects/CouponRedemptionCountAggregateInput.schema';
+import { CouponRedemptionMinAggregateInputObjectSchema as CouponRedemptionMinAggregateInputObjectSchema } from './objects/CouponRedemptionMinAggregateInput.schema';
+import { CouponRedemptionMaxAggregateInputObjectSchema as CouponRedemptionMaxAggregateInputObjectSchema } from './objects/CouponRedemptionMaxAggregateInput.schema';
+
+export const CouponRedemptionGroupBySchema: z.ZodType<Prisma.CouponRedemptionGroupByArgs> = z.object({ where: CouponRedemptionWhereInputObjectSchema.optional(), orderBy: z.union([CouponRedemptionOrderByWithAggregationInputObjectSchema, CouponRedemptionOrderByWithAggregationInputObjectSchema.array()]).optional(), having: CouponRedemptionScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(CouponRedemptionScalarFieldEnumSchema), _count: z.union([ z.literal(true), CouponRedemptionCountAggregateInputObjectSchema ]).optional(), _min: CouponRedemptionMinAggregateInputObjectSchema.optional(), _max: CouponRedemptionMaxAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.CouponRedemptionGroupByArgs>;
+
+export const CouponRedemptionGroupByZodSchema = z.object({ where: CouponRedemptionWhereInputObjectSchema.optional(), orderBy: z.union([CouponRedemptionOrderByWithAggregationInputObjectSchema, CouponRedemptionOrderByWithAggregationInputObjectSchema.array()]).optional(), having: CouponRedemptionScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(CouponRedemptionScalarFieldEnumSchema), _count: z.union([ z.literal(true), CouponRedemptionCountAggregateInputObjectSchema ]).optional(), _min: CouponRedemptionMinAggregateInputObjectSchema.optional(), _max: CouponRedemptionMaxAggregateInputObjectSchema.optional() }).strict();

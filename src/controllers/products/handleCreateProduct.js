@@ -19,7 +19,9 @@ async function handleCreateProduct(req, res) {
       isOptionItem,
       packOptionSurcharge,
       packMaxItems,
-      sortOrder         // del producto (por categoría)
+      sortOrder,
+       hasSpecifications,
+       specificationsTitle         // del producto (por categoría)
     } = req.body;
 
     // 1) Unicidad por name
@@ -131,6 +133,8 @@ async function handleCreateProduct(req, res) {
           packOptionSurcharge: packOptionSurcharge ? Number(packOptionSurcharge) : 0,
           packMaxItems: packMaxItems != null ? Number(packMaxItems) : undefined,
           sortOrder: sortOrderToUse,
+          hasSpecifications: !!hasSpecifications,
+          specificationsTitle: specificationsTitle || undefined,
         },
       });
 

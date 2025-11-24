@@ -1,0 +1,10 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { StoreConfigSelectObjectSchema as StoreConfigSelectObjectSchema } from './objects/StoreConfigSelect.schema';
+import { StoreConfigUpdateInputObjectSchema as StoreConfigUpdateInputObjectSchema } from './objects/StoreConfigUpdateInput.schema';
+import { StoreConfigUncheckedUpdateInputObjectSchema as StoreConfigUncheckedUpdateInputObjectSchema } from './objects/StoreConfigUncheckedUpdateInput.schema';
+import { StoreConfigWhereUniqueInputObjectSchema as StoreConfigWhereUniqueInputObjectSchema } from './objects/StoreConfigWhereUniqueInput.schema';
+
+export const StoreConfigUpdateOneSchema: z.ZodType<Prisma.StoreConfigUpdateArgs> = z.object({ select: StoreConfigSelectObjectSchema.optional(),  data: z.union([StoreConfigUpdateInputObjectSchema, StoreConfigUncheckedUpdateInputObjectSchema]), where: StoreConfigWhereUniqueInputObjectSchema }).strict() as unknown as z.ZodType<Prisma.StoreConfigUpdateArgs>;
+
+export const StoreConfigUpdateOneZodSchema = z.object({ select: StoreConfigSelectObjectSchema.optional(),  data: z.union([StoreConfigUpdateInputObjectSchema, StoreConfigUncheckedUpdateInputObjectSchema]), where: StoreConfigWhereUniqueInputObjectSchema }).strict();

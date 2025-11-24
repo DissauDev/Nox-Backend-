@@ -1,5 +1,6 @@
 const express = require('express');
-const { getPages, getPageBySlug, createPage, updatePage, deletePage } = require("../controllers/pageController");
+const { getPages, getPageBySlug, createPage,
+     updatePage, deletePage } = require("../controllers/pageController");
 
 const router = express.Router();
 

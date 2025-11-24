@@ -1,0 +1,25 @@
+import * as z from 'zod';
+export const OrderDeleteResultSchema = z.nullable(z.object({
+  id: z.string(),
+  orderNumber: z.string(),
+  status: z.unknown(),
+  createdAt: z.date(),
+  totalAmount: z.number(),
+  subtotal: z.number(),
+  paymentMethod: z.string(),
+  stripePaymentIntentId: z.string(),
+  userId: z.string().optional(),
+  user: z.unknown().optional(),
+  customerName: z.string(),
+  customerLastname: z.string().optional(),
+  customerEmail: z.string(),
+  customerPhone: z.string().optional(),
+  customerAddress: z.string(),
+  apartment: z.string().optional(),
+  company: z.string().optional(),
+  billingCity: z.string().optional(),
+  billingState: z.string().optional(),
+  zipcode: z.string().optional(),
+  specifications: z.string().optional(),
+  items: z.array(z.unknown())
+}));

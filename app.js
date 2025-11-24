@@ -4,6 +4,8 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
+const swaggerUi = require('swagger-ui-express');
+const { swaggerSpec } = require('./src/docs/swagger');
 
 // Rutas
 const productRoutes = require('./src/routes/productRoutes');
@@ -68,6 +70,22 @@ function buildApp({
     })
   );
 
+    // --- Swagger UI ---
+  // Sirve la UI y el JSON del spec
+  app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/docs.json', (_req, res) => res.json(swaggerSpec));
+
+    // (Opcional) rate limit, excluye rutas ruidosas y docs
+  if (enableRateLimit && rateLimiter) {
+    app.use((req, res, next) => {
+      if (req.path.startsWith('/uploads')) return next();
+      if (req.path.startsWith('/api/stripe/webhook')) return next();
+      if (req.path.startsWith('/api/pages')) return next();
+      if (req.path.startsWith('/api/menu')) return next();
+      if (req.path.startsWith('/docs')) return next(); // ⬅️ importante para Swagger
+      return rateLimiter(req, res, next);
+    });
+  }
   // Rutas API
   app.use('/api', productRoutes);
   app.use('/api', orderRoutes);

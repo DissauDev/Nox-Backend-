@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
-const { getStoreConfig,updateStoreConfig, createStoreConfig } = require('../controllers/settingsControllers');
+const { getStoreConfig,updateStoreConfig,
+     createStoreConfig } = require('../controllers/settingsControllers');
 
 
 router.get('/settings/tax', getStoreConfig);

@@ -1,0 +1,12 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { ProductOptionValueOrderByWithRelationInputObjectSchema as ProductOptionValueOrderByWithRelationInputObjectSchema } from './objects/ProductOptionValueOrderByWithRelationInput.schema';
+import { ProductOptionValueWhereInputObjectSchema as ProductOptionValueWhereInputObjectSchema } from './objects/ProductOptionValueWhereInput.schema';
+import { ProductOptionValueWhereUniqueInputObjectSchema as ProductOptionValueWhereUniqueInputObjectSchema } from './objects/ProductOptionValueWhereUniqueInput.schema';
+import { ProductOptionValueCountAggregateInputObjectSchema as ProductOptionValueCountAggregateInputObjectSchema } from './objects/ProductOptionValueCountAggregateInput.schema';
+import { ProductOptionValueMinAggregateInputObjectSchema as ProductOptionValueMinAggregateInputObjectSchema } from './objects/ProductOptionValueMinAggregateInput.schema';
+import { ProductOptionValueMaxAggregateInputObjectSchema as ProductOptionValueMaxAggregateInputObjectSchema } from './objects/ProductOptionValueMaxAggregateInput.schema';
+
+export const ProductOptionValueAggregateSchema: z.ZodType<Prisma.ProductOptionValueAggregateArgs> = z.object({ orderBy: z.union([ProductOptionValueOrderByWithRelationInputObjectSchema, ProductOptionValueOrderByWithRelationInputObjectSchema.array()]).optional(), where: ProductOptionValueWhereInputObjectSchema.optional(), cursor: ProductOptionValueWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), _count: z.union([ z.literal(true), ProductOptionValueCountAggregateInputObjectSchema ]).optional(), _min: ProductOptionValueMinAggregateInputObjectSchema.optional(), _max: ProductOptionValueMaxAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.ProductOptionValueAggregateArgs>;
+
+export const ProductOptionValueAggregateZodSchema = z.object({ orderBy: z.union([ProductOptionValueOrderByWithRelationInputObjectSchema, ProductOptionValueOrderByWithRelationInputObjectSchema.array()]).optional(), where: ProductOptionValueWhereInputObjectSchema.optional(), cursor: ProductOptionValueWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), _count: z.union([ z.literal(true), ProductOptionValueCountAggregateInputObjectSchema ]).optional(), _min: ProductOptionValueMinAggregateInputObjectSchema.optional(), _max: ProductOptionValueMaxAggregateInputObjectSchema.optional() }).strict();
