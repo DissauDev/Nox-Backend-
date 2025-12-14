@@ -21,7 +21,7 @@ const analiticsRoutes = require('./src/routes/analiticsRoutes');
 const settingRoutes = require('./src/routes/settingRoutes');
 const couponRoutes = require('./src/routes/couponRoutes');
 const googleSheetRoutes = require('./src/routes/googleSheetsRoutes');
-
+const deliveryRoutes = require('./src/routes/deliveryRoutes');
 // Middlewares
 const errorHandler = require('./src/middlewares/errorHandler');
 // Si tienes un rateLimiter, puedes requerirlo aquí opcionalmente
@@ -100,7 +100,7 @@ function buildApp({
   app.use('/api', settingRoutes);
   app.use('/api', couponRoutes);
   app.use('/api', googleSheetRoutes);
-
+app.use('/api', deliveryRoutes); // => /api/delivery/quote
   // Errores
   app.use(errorHandler);
 

@@ -204,34 +204,70 @@ async function updateProductStatus(req, res) {
   }
 }
 
+
+
+function availabilityWhereForOrderType(orderType) {
+  if (!orderType) return undefined;
+  const t = String(orderType).toLowerCase();
+  if (t === "pickup") return { in: ["PICKUP_ONLY", "BOTH"] };
+  if (t === "delivery") return { in: ["DELIVERY_ONLY", "BOTH"] };
+  return undefined;
+}
+
+/**
+ * GET /products/:id/suggestions?orderType=pickup|delivery
+ */
 async function getProductSuggestions(req, res) {
   try {
     const { id } = req.params;
+    const { orderType } = req.query;
 
     // 1) Obtener la categoría del producto base
     const base = await prisma.product.findUnique({
       where: { id },
       select: { categoryId: true },
     });
+
     if (!base) {
       return res.status(404).json({ message: "Product not found" });
     }
 
+    const availabilityFilter = availabilityWhereForOrderType(orderType);
+
+    // Filtro común para sugerencias:
+    // - AVAILABLE
+    // - availability compatible con orderType
+    // - NO tener OptionGroup.required=true en ninguna opción del producto
+    const commonWhere = {
+      status: "AVAILABLE",
+      ...(availabilityFilter ? { availability: availabilityFilter } : {}),
+
+      // ✅ excluir si existe algún grupo requerido asociado
+      options: {
+        none: {
+          group: { required: true },
+        },
+      },
+    };
+
     // 2) Intentar 2 sugerencias en la misma categoría
     const sameCat = await prisma.product.findMany({
       where: {
+        ...commonWhere,
         categoryId: base.categoryId,
         id: { not: id },
-        status: "AVAILABLE",
       },
       take: 2,
       select: {
         id: true,
         name: true,
         price: true,
+        salePrice: true,
         imageLeft: true,
         categoryId: true,
+        availability: true,
       },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
 
     let suggestions = [...sameCat];
@@ -239,26 +275,33 @@ async function getProductSuggestions(req, res) {
     // 3) Si faltan para llegar a 2, rellenar con productos de otras categorías
     if (suggestions.length < 2) {
       const excludeIds = [id, ...suggestions.map((p) => p.id)];
+
       const fill = await prisma.product.findMany({
         where: {
+          ...commonWhere,
           id: { notIn: excludeIds },
-          status: "AVAILABLE",
+          categoryId: { not: base.categoryId },
         },
         take: 2 - suggestions.length,
         select: {
           id: true,
           name: true,
           price: true,
+          salePrice: true,
           imageLeft: true,
           categoryId: true,
+          availability: true,
         },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       });
+
       suggestions = suggestions.concat(fill);
     }
 
     return res.status(200).json(suggestions);
   } catch (error) {
-      return res.status(500).json({ message: 'Internal server error' });
+    console.error("Error in getProductSuggestions:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 

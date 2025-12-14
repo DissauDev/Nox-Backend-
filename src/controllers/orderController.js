@@ -8,7 +8,8 @@ const { sendOrderConfirmation } = require('../utils/orderEmail.util');
 const { sendEmail } = require('../utils/email');  
 const { sendAdminNewOrderNotification } = require('../utils/emailToOrderAdmin');
 
-const createOrder = async (req, res) => {
+ const createOrder = async (req, res) => {
+  console.log("create order pickup");
   const {
     items, amount, customerEmail, userId: rawUserId,
     billingState, billingCity, paymentMethodId, customerPhone,
@@ -249,18 +250,17 @@ const getOrderById = async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        // trae al usuario
+        // 👇 usuario
         user: true,
+
+        // 👇 ítems + producto + opciones
         items: {
           include: {
-            // cada OrderItem, también su Product
             product: {
               include: {
-                // la categoría (relación Many-to-One)
                 category: {
-                  select: { id: true, name: true }
+                  select: { id: true, name: true },
                 },
-                // los grupos de opciones asignados al producto
                 options: {
                   include: {
                     group: {
@@ -269,8 +269,8 @@ const getOrderById = async (req, res) => {
                         name: true,
                         required: true,
                         minSelectable: true,
-                        maxSelectable: true
-                      }
+                        maxSelectable: true,
+                      },
                     },
                     values: {
                       include: {
@@ -280,27 +280,33 @@ const getOrderById = async (req, res) => {
                             name: true,
                             extraPrice: true,
                             imageUrl: true,
-                            groupId: true
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+                            groupId: true,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+
+        // 👇 NUEVO: detalles de delivery asociados a la orden
+        delivery: true, // o "deliveries: true" si la relación es 1-N
+      },
     });
 
     if (!order) {
       return res.status(404).json({ message: "Orden not found" });
     }
+
     res.status(200).json(order);
   } catch (error) {
     console.error("Error en getOrderById:", error);
-    res.status(400).json({ message: error.message || "Error to get order" });
+    res
+      .status(400)
+      .json({ message: error.message || "Error to get order" });
   }
 };
 

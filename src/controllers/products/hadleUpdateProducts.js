@@ -24,7 +24,8 @@ async function hadleUpdateProduct(req, res) {
       isOptionItem,
       packOptionSurcharge,
       packMaxItems,
-      sortOrder,   
+      sortOrder,
+      availability,    
       hasSpecifications,
        specificationsTitle        // <-- sortOrder del producto dentro de su categoría (opcional)
     } = req.body;
@@ -76,7 +77,7 @@ async function hadleUpdateProduct(req, res) {
 
     if (type) updateData.type = type;
     if (status) updateData.status = status;
-
+    if(availability) updateData.availability = availability;  
     if (isOptionItem !== undefined) updateData.isOptionItem = !!isOptionItem;
     if (packOptionSurcharge !== undefined) updateData.packOptionSurcharge = Number(packOptionSurcharge) || 0;
     if (packMaxItems !== undefined) updateData.packMaxItems = packMaxItems === null ? null : Number(packMaxItems);

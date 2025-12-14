@@ -25,33 +25,41 @@ model Category {
 
 /// Producto principal
 model Product {
-  id                  String          @id @default(uuid())
-  name                String          @unique
+  id                  String              @id @default(uuid())
+  name                String              @unique
   price               Float
-  salePrice           Float?          @map("sellPrice")
+  salePrice           Float?              @map("sellPrice")
   specifications      String?
   description         String?
   imageLeft           Json? // { url, blurHash }
   imageRight          Json?
-  type                ProductType     @default(REGULAR)
-  status              ProductStatus   @default(AVAILABLE)
+  type                ProductType         @default(REGULAR)
+  status              ProductStatus       @default(AVAILABLE)
   categoryId          String
-  category            Category        @relation(fields: [categoryId], references: [id])
+  category            Category            @relation(fields: [categoryId], references: [id])
   options             ProductOption[]
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   OrderItem           OrderItem[]
-  sortOrder           Int             @default(1)
+  sortOrder           Int                 @default(1)
   OptionValue         OptionValue[]
-  isOptionItem        Boolean         @default(false) // checkbox “usar como opción”
-  packOptionSurcharge Float           @default(0) // “precio para la caja”
+  isOptionItem        Boolean             @default(false) // checkbox “usar como opción”
+  packOptionSurcharge Float               @default(0) // “precio para la caja”
   packMaxItems        Int?
-  hasSpecifications   Boolean         @default(false) // muestra el campo de especificaciones
-  specificationsTitle String?         @default("Specifications") // título personalizado para las especificaciones
+  hasSpecifications   Boolean             @default(false) // muestra el campo de especificaciones
+  specificationsTitle String?             @default("Specifications") // título personalizado para las especificaciones
+  availability        ProductAvailability @default(BOTH) // ✅ NUEVO
 
   @@index([status])
   @@index([categoryId, sortOrder, name]) // orden y búsquedas por categoría
   @@index([name])
+  @@index([availability]) // ✅ opcional, ayuda a filtrar rápido
+}
+
+enum ProductAvailability {
+  PICKUP_ONLY
+  DELIVERY_ONLY
+  BOTH
 }
 
 /// Relación muchos-a-muchos para asignar grupos de opciones a cada producto
@@ -123,34 +131,87 @@ model OrderItem {
 
 /// Orden principal
 model Order {
-  id                    String      @id @default(uuid())
-  orderNumber           String      @unique
-  status                OrderStatus @default(PROCESSING)
-  createdAt             DateTime    @default(now())
-  totalAmount           Float
-  subtotal              Float
-  paymentMethod         String
-  stripePaymentIntentId String
-  userId                String?
-  user                  User?       @relation(fields: [userId], references: [id])
-
+  id                      String      @id @default(uuid())
+  orderNumber             String      @unique
+  status                  OrderStatus @default(PROCESSING)
+  createdAt               DateTime    @default(now())
+  totalAmount             Float
+  subtotal                Float
+  paymentMethod           String
+  stripePaymentIntentId   String?
+  userId                  String?
+  user                    User?       @relation(fields: [userId], references: [id])
+  checkoutRequestId       String?     @unique
+  failureDetails          Json?
   // Datos del cliente
-  customerName     String
-  customerLastname String?
-  customerEmail    String
-  customerPhone    String?
-
+  customerName            String
+  customerLastname        String?
+  customerEmail           String
+  customerPhone           String?
+  paymentMethodIdSnapshot String? // opcional recomendado
   // Dirección de facturación / envío
-  customerAddress String // line1
-  apartment       String? // line2 (opcional)
-  company         String? // (opcional)
-  billingCity     String?
-  billingState    String?
-  zipcode         String? // <-- NUEVO (requerido)
+  customerAddress         String // line1
+  apartment               String? // line2 (opcional)
+  company                 String? // (opcional)
+  billingCity             String?
+  billingState            String?
+  zipcode                 String?
 
-  specifications String? @default("")
+  fulfillmentType FulfillmentType @default(PICKUP)
+  specifications  String?         @default("")
 
-  items OrderItem[]
+  items    OrderItem[]
+  delivery Delivery? //  relación 1–1 con Delivery
+}
+
+model Delivery {
+  id String @id @default(uuid())
+
+  // Relación 1–1 con Order
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  provider DeliveryProvider @default(DOORDASH)
+
+  /// Id que tú usas como external_delivery_id cuando llamas a DoorDash
+  externalDeliveryId String @unique
+
+  /// Id que DoorDash te devuelve (delivery_id)
+  doordashDeliveryId String?
+
+  status DeliveryStatus @default(REQUESTED)
+
+  // Datos de entrega
+  pickupAddress  String? // por si quieres guardar explícito el pickup del store
+  dropoffAddress String? // normalmente será customerAddress
+  dropoffName    String?
+  dropoffPhone   String?
+
+  trackingUrl String? // tracking_url de DoorDash
+
+  // Costos
+  deliveryFee Float?
+  tipAmount   Float?
+  currency    String? @default("USD")
+
+  // Info del driver (si DoorDash te la da)
+  driverName  String?
+  driverPhone String?
+
+  // Tiempos estimados / reales
+  etaPickup          DateTime?
+  etaDropoff         DateTime?
+  deliveredAt        DateTime?
+  driverInstructions String?
+  // Para debugging / auditoría
+  rawRequest         Json? // payload que tú le mandaste a DoorDash
+  rawResponse        Json? // respuesta de DoorDash (create / quote)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider, status])
+  @@index([doordashDeliveryId])
 }
 
 model StoreConfig {
@@ -208,6 +269,8 @@ enum OrderStatus {
   READY_FOR_PICKUP
   OUT_FOR_DELIVERY
   COMPLETED
+  PAYMENT_CAPTURE_FAILED
+  AUTHORIZED
   CANCELLED
   REFUNDED
   FAILED
@@ -247,4 +310,24 @@ model CouponRedemption {
   userId     String? // si lo limitas por usuario
   orderId    String? // si lo asocias a una orden concreta
   redeemedAt DateTime @default(now())
+}
+
+enum FulfillmentType {
+  PICKUP
+  DELIVERY
+}
+
+enum DeliveryProvider {
+  DOORDASH
+}
+
+enum DeliveryStatus {
+  REQUESTED // creado en tu sistema pero aún no enviado a DoorDash
+  SENT // request enviada a DoorDash
+  ACCEPTED // driver aceptó
+  PICKED_UP // pedido recogido
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  FAILED
 }
