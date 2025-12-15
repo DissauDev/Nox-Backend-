@@ -25,6 +25,7 @@
     "crypto": "^1.0.1",
     "csv-parse": "^6.1.0",
     "csv-parser": "^3.2.0",
+    "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
@@ -43,7 +44,6 @@
   },
   "devDependencies": {
     "cross-env": "^10.1.0",
-    "dotenv": "^17.2.3",
     "dotenv-cli": "^10.0.0",
     "jest": "^30.2.0",
     "nock": "^14.0.10",
