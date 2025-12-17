@@ -34,7 +34,10 @@ function renderTableRows(pairs) {
 
 // Tabla de ítems de la orden
 function renderItems(items = []) {
+  console.log(items);
+   console.log(items.product);
   if (!Array.isArray(items) || items.length === 0) return "";
+
   const rows = items
     .map(
       (it) => `

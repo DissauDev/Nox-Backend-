@@ -4,7 +4,7 @@ require('dotenv').config();
 async function sendEmail({ to, subject, html }) {
   // Ejemplo usando nodemailer/gmail. Ajusta según tu proveedor SMTP.
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
+    host: process.env.SMTP_HOST ||'smtp.gmail.com',
     port: Number(process.env.SMTP_PORT) || 465,
     secure: true, // true si usas SSL
     auth: {

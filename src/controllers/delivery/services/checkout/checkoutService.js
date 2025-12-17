@@ -314,14 +314,22 @@ async function runDeliveryCheckout(payload) {
     const paidOrder = await markOrderPaid(pendingOrder.id);
 
     // trae delivery para respuesta consistente
-    const finalOrder = await prisma.order.findUnique({
-      where: { id: paidOrder.id },
-      include: { items: true, delivery: true },
-    });
+  const finalOrder = await prisma.order.findUnique({
+  where: { id: paidOrder.id },
+  include: {
+    items: {
+      include: {
+        product: { select: { name: true } }, // ✅ esto habilita it.product.name
+      },
+    },
+    delivery: true,
+  },
+});
 
     // 8) Emails (solo si el checkout terminó bien y el cliente lo pidió)
 if (payload.sendEmail) {
   try {
+   
     await sendOrderEmails({
       order: finalOrder || paidOrder,
       logoUrl: process.env.ASSETS_URL,

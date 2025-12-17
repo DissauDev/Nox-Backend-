@@ -12,6 +12,9 @@ function availabilityWhereForOrderType(orderType) {
   if (t === "delivery") {
     return { in: ["DELIVERY_ONLY", "BOTH"] };
   }
+   if (t === "both") {
+    return { in: ["BOTH","DELIVERY_ONLY","PICKUP_ONLY"] };
+  }
 
   // si llega algo raro, no filtramos (o puedes tirar 400)
   return undefined;

@@ -9,7 +9,7 @@ const { sendEmail } = require('../utils/email');
 const { sendAdminNewOrderNotification } = require('../utils/emailToOrderAdmin');
 
  const createOrder = async (req, res) => {
-  console.log("create order pickup");
+  
   const {
     items, amount, customerEmail, userId: rawUserId,
     billingState, billingCity, paymentMethodId, customerPhone,
@@ -121,7 +121,13 @@ const { sendAdminNewOrderNotification } = require('../utils/emailToOrderAdmin');
           }))
         }
       },
-      include: { items: true }
+      include: {
+  items: {
+    include: {
+      product: { select: { name: true } }, // ✅ para it.product.name
+    },
+  },
+}
     });
    await sendOrderConfirmation({ sendEmail }, { order, logoUrl: process.env.ASSETS_URL });
    await sendAdminNewOrderNotification({sendEmail}, {order, logoUrl: process.env.ASSETS_URL});
