@@ -173,45 +173,57 @@ model Delivery {
 
   provider DeliveryProvider @default(DOORDASH)
 
-  /// Id que tú usas como external_delivery_id cuando llamas a DoorDash
-  externalDeliveryId String @unique
-
-  /// Id que DoorDash te devuelve (delivery_id)
+  externalDeliveryId String  @unique
   doordashDeliveryId String?
 
   status DeliveryStatus @default(REQUESTED)
 
   // Datos de entrega
-  pickupAddress  String? // por si quieres guardar explícito el pickup del store
-  dropoffAddress String? // normalmente será customerAddress
+  pickupAddress  String?
+  dropoffAddress String?
   dropoffName    String?
   dropoffPhone   String?
 
-  trackingUrl String? // tracking_url de DoorDash
+  trackingUrl String?
 
   // Costos
   deliveryFee Float?
   tipAmount   Float?
   currency    String? @default("USD")
 
-  // Info del driver (si DoorDash te la da)
+  // Info del driver
   driverName  String?
   driverPhone String?
 
-  // Tiempos estimados / reales
+  // Tiempos
   etaPickup          DateTime?
   etaDropoff         DateTime?
   deliveredAt        DateTime?
   driverInstructions String?
-  // Para debugging / auditoría
-  rawRequest         Json? // payload que tú le mandaste a DoorDash
-  rawResponse        Json? // respuesta de DoorDash (create / quote)
+
+  // 🔹 NUEVO: info de cancelación
+  cancelSource DeliveryCancelSource? // quién inició la cancelación
+  cancelReason String? // texto con el motivo
+  cancelledAt  DateTime? // cuándo se canceló
+
+  // Debug / auditoría
+  rawRequest  Json?
+  rawResponse Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([provider, status])
   @@index([doordashDeliveryId])
+}
+
+enum DeliveryCancelSource {
+  CUSTOMER // lo canceló el cliente
+  DRIVER // lo canceló el dasher
+  MERCHANT // lo canceló la tienda
+  SUPPORT // soporte de DoorDash
+  SYSTEM // error interno / automático
+  OTHER
 }
 
 model StoreConfig {

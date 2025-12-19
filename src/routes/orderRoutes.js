@@ -8,7 +8,8 @@ const {
   refundOrder,
   updateOrder,
   deleteOrder,
-  updateOrderStatus
+  updateOrderStatus,
+  convertOrderToPickup
 } = require('../controllers/orderController');
 
 router.post('/orders', createOrder);
@@ -20,5 +21,6 @@ router.post('/orders/:id/refund', refundOrder);
 router.patch('/orders/:id/status', updateOrderStatus);
 
 router.delete('/orders/:id', deleteOrder);
+router.post("/orders/:id/convert-to-pickup", convertOrderToPickup);
 
 module.exports = router;

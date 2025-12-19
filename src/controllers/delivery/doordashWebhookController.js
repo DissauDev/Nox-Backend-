@@ -1,4 +1,8 @@
 const { prisma } = require("../../lib/prisma");
+const { sendEmail: sendEmailFn } = require("../../utils/email"); // ajusta la ruta si hace falta
+const {
+  sendAdminDeliveryCancelledNotification,
+} = require("../../utils/emailToOrderAdmin"); // ajusta la ruta según tu estructura
 
 // ✅ DeliveryStatus (ajústalo a TU enum real)
 function mapEventToDeliveryStatus(eventName) {
@@ -43,12 +47,13 @@ function mapEventToOrderStatus(eventName) {
       return "COMPLETED";
 
     case "DELIVERY_CANCELLED":
-      return "CANCELLED";
+      return null;
 
     default:
       return null;
   }
 }
+const FINAL_DELIVERY = new Set(["DELIVERED", "CANCELLED"]);
 
 // helper para no “pisar” campos con undefined
 function pickDefined(obj) {
@@ -60,6 +65,8 @@ function pickDefined(obj) {
 /**
  * POST /api/webhooks/doordash
  */
+
+
 const handleDoorDashWebhook = async (req, res) => {
   try {
     // 1) Auth simple opcional
@@ -151,7 +158,13 @@ const handleDoorDashWebhook = async (req, res) => {
     const result = await prisma.$transaction(async (tx) => {
       const updatedDelivery = await tx.delivery.update({
         where: { id: delivery.id },
-        data: deliveryUpdateData,
+       data: {
+      ...deliveryUpdateData,
+          ...(FINAL_DELIVERY.has(delivery.status)
+            ? { status: delivery.status }
+            : {}),
+    },
+
       });
 
       let updatedOrder = delivery.order;
@@ -161,11 +174,13 @@ const handleDoorDashWebhook = async (req, res) => {
       // - tenemos mapeo
       // - y NO está en un estado final que no quieres pisar
       //   (ej: si ya está COMPLETED, no lo regreses a PROCESSING)
-      const FINAL_ORDER = new Set(["COMPLETED", "CANCELLED", "REFUNDED", "FAILED"]);
+  
+const FINAL_ORDER = new Set(["COMPLETED", "CANCELLED", "REFUNDED", "FAILED"]);
       if (
         updatedOrder &&
         newOrderStatus &&
-        !FINAL_ORDER.has(updatedOrder.status)
+        !FINAL_ORDER.has(updatedOrder.status) &&
+        newDeliveryStatus !== "CANCELLED" // 👈 no tocar orden en cancelación
       ) {
         updatedOrder = await tx.order.update({
           where: { id: updatedOrder.id },
@@ -176,13 +191,33 @@ const handleDoorDashWebhook = async (req, res) => {
       return { updatedDelivery, updatedOrder };
     });
 
+    // Si el delivery pasó a CANCELLED y antes no lo estaba → notificar al admin
+    if (
+      newDeliveryStatus === "CANCELLED" &&
+      delivery.status !== "CANCELLED"
+    ) {
+      try {
+        await sendAdminDeliveryCancelledNotification(
+          { sendEmail: sendEmailFn },
+          {
+            order: result.updatedOrder || delivery.order,
+            delivery: result.updatedDelivery,
+          }
+        );
+      } catch (emailErr) {
+        console.warn(
+          "[DoorDash Webhook] Failed to send admin cancellation email:",
+          emailErr?.message
+        );
+      }
+    }
+
     // 6) Respuesta útil para Postman
     return res.status(200).json({
       success: true,
       received: true,
       event_name,
       external_delivery_id,
-
       before: {
         deliveryStatus: delivery.status,
         orderStatus: delivery.order?.status ?? null,

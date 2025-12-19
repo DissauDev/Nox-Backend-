@@ -170,20 +170,18 @@ async function getOrders(req, res) {
     where.createdAt = { gte: since };
   }
   try {
-      // === Filtrar por Pickup vs Delivery ===
-  // (ajusta la dirección de pickup según tu negocio)
-  const PICKUP_ADDRESS = '422 E Campbell Ave, Campbell, CA 95008';
+    
   if (origin === 'pickup') {
-    where.customerAddress = PICKUP_ADDRESS;
+    where.fulfillmentType  = 'PICKUP' ;
   } else if (origin === 'delivery') {
-    where.customerAddress = { not: PICKUP_ADDRESS };
+    where.fulfillmentType = 'DELIVERY'
   }
 
   const skip = (page - 1) * perPage;
   const [orders, totalPage] = await Promise.all([
     prisma.order.findMany({
       where,
-      include: { items: true },
+      include: { items: true,delivery:true },
       orderBy: { createdAt: 'desc' },
       skip,
       take: Number(perPage),
@@ -193,6 +191,7 @@ async function getOrders(req, res) {
 
   res.json({ orders, totalPage, page: Number(page), perPage: Number(perPage) });
   } catch (error) {
+    console.log(error);
    res.status(500).json({message: "error to get orders"}) 
   } 
 }
@@ -484,6 +483,88 @@ const refundOrder = async (req, res) => {
   }
 };
 
+const convertOrderToPickup = async (req, res) => {
+  const { id } = req.params; // id de la orden
+
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        delivery: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // 1) Debe ser originalmente DELIVERY
+    if (order.fulfillmentType !== "DELIVERY") {
+      return res.status(400).json({
+        success: false,
+        message: "Only delivery orders can be converted to pickup.",
+      });
+    }
+
+    // 2) Validar que haya delivery y que esté CANCELLED
+    if (!order.delivery || order.delivery.status !== "CANCELLED") {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Order delivery must be CANCELLED before converting to pickup.",
+      });
+    }
+
+    // 3) No permitir si la orden está en un estado final “muerto”
+    const BLOCKED_STATUSES = new Set(["CANCELLED", "REFUNDED", "FAILED"]);
+    if (BLOCKED_STATUSES.has(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Order in status ${order.status} cannot be converted to pickup.`,
+      });
+    }
+
+    // 4) Actualizar solo la orden: fulfillmentType -> PICKUP
+    //    Puedes ajustar el status si quieres, por ejemplo:
+    //    - Si está PAID -> READY_FOR_PICKUP
+    const newStatus =
+      order.status === "PAID" ? "READY_FOR_PICKUP" : order.status;
+
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: {
+        fulfillmentType: "PICKUP",
+        status: newStatus,
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+        delivery: true, // seguimos viendo el delivery cancelado
+        user: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      order: updatedOrder,
+    });
+  } catch (error) {
+    console.error("Error in convertOrderToPickup:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error converting order to pickup",
+      error: error.message,
+    });
+  }
+};
+
+
 
 module.exports = {
   createOrder,
@@ -493,6 +574,7 @@ module.exports = {
   updateOrder,
   deleteOrder,
   refundOrder,
-  updateOrderStatus
+  updateOrderStatus,
+  convertOrderToPickup
 };
 

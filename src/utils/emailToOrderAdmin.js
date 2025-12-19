@@ -1,4 +1,161 @@
-// src/utils/orderEmail.util.js (bloque admin autocontenido)
+
+function renderAdminDeliveryCancelledEmailHTML(order, delivery, opts = {}) {
+  const resolvedLogo = safe(opts.logoUrl) ? opts.logoUrl : getEnvLogoUrl();
+
+  const brand = {
+    primary: "#b91c1c", // rojo suave para "alerta"
+    bg: "#FEF2F2",
+    surface: "#FFFFFF",
+    text: "#1F2937",
+    logoBar: "#0F172A",
+    logoUrl: resolvedLogo,
+    ...(opts.brand || {}),
+  };
+
+  const adminUrl = joinUrl(
+    process.env.FRONT_URL,
+    `/dashboard/orders/${order?.id}`
+  );
+  const itemsBlock = renderItems(order?.items);
+
+  const origin =
+    order?.customerAddress === "422 E Campbell Ave, Campbell, CA 95008"
+      ? "Pickup"
+      : "Delivery";
+
+  const cancelledAt =
+    delivery?.cancelledAt &&
+    new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(delivery.cancelledAt));
+
+  // Texto legible para source
+  const cancelSourceLabel = (() => {
+    switch (delivery?.cancelSource) {
+      case "CUSTOMER":
+        return "Customer";
+      case "DRIVER":
+        return "Dasher / Driver";
+      case "MERCHANT":
+        return "Store / Merchant";
+      case "SUPPORT":
+        return "DoorDash Support";
+      case "SYSTEM":
+        return "System / Automatic";
+      case "OTHER":
+        return "Other";
+      default:
+        return null;
+    }
+  })();
+
+  const summaryPairs = [
+    ["Order #", order?.orderNumber],
+    ["Order Status", order?.status],
+    ["Fulfillment Type", order?.fulfillmentType],
+    ["Origin", origin],
+    ["Delivery Status", delivery?.status],
+    ["Cancel Source", cancelSourceLabel],
+    ["Cancel Reason", delivery?.cancelReason],
+    ["Cancelled At", cancelledAt],
+    ["Customer", joinNonEmpty(order?.customerName, order?.customerLastname)],
+    ["Email", order?.customerEmail],
+    ["Phone", order?.customerPhone],
+    [
+      "Total",
+      safe(order?.totalAmount) ? currency(Number(order.totalAmount)) : null,
+    ],
+    ["Payment Method", order?.paymentMethod],
+  ].filter(([k, v]) => safe(k) && safe(v));
+
+  const summaryRows = renderTableRows(summaryPairs);
+
+  return `
+  <div style="background-color:${brand.bg}; padding:40px; font-family: Arial, sans-serif; color:${brand.text};">
+    <style>
+      img { max-width: 100%; height: auto; display: block; border: 0; }
+      .container { max-width: 640px; margin: auto; background:${brand.surface}; border-radius:10px; padding:0; box-shadow:0 6px 18px rgba(0,0,0,0.06); }
+      .inner { padding:30px; }
+      .table { width: 100%; border-collapse: collapse; }
+      .cell { word-break: break-word; }
+      .muted { color:#6B7280; }
+      @media only screen and (max-width:600px) {
+        .inner { padding:18px !important; }
+        .mobile-block { display:block !important; width:100% !important; text-align:left !important; }
+        .table th, .table td { display:block !important; width:100% !important; text-align:left !important; }
+        .btn { display:inline-block !important; padding:12px 18px !important; }
+      }
+    </style>
+
+    <div class="container">
+      <!-- Header oscuro con logo -->
+      <div style="background:${brand.logoBar}; text-align:center; padding:14px 0; border-radius:10px 10px 0 0;">
+        ${
+          safe(brand.logoUrl)
+            ? `<img src="${brand.logoUrl}" width="220" alt="Nox Cookie Bar" style="margin:0 auto; display:block;">`
+            : `<div style="color:#FFFFFF; font-weight:700; font-size:18px;">Nox Cookie Bar</div>`
+        }
+      </div>
+
+      <div class="inner">
+        <h2 style="margin:0; color:${brand.primary};">Delivery cancelled</h2>
+        <p style="font-size:15px; line-height:1.6; color:${brand.text}; margin-top:6px;">
+          The delivery for this order has been <strong>cancelled</strong>. Please review the details below and decide whether to convert the order to pickup or issue a refund.
+        </p>
+
+        <!-- Tabla de resumen organizada -->
+        <table class="table" width="100%" cellspacing="0" cellpadding="0" style="margin-top:12px; border:1px solid #fecaca; border-radius:8px; overflow:hidden;">
+          <tbody>
+            ${summaryRows}
+          </tbody>
+        </table>
+
+        ${itemsBlock}
+
+        <div style="text-align:center; margin:28px 0 8px;">
+          <a href="${adminUrl}"
+            class="btn"
+            style="background-color:${brand.logoBar}; color:#fff; padding:12px 22px; text-decoration:none; border-radius:6px; display:inline-block;">
+            View order in dashboard
+          </a>
+        </div>
+
+        <p class="muted" style="font-size:12px; color:#6B7280; margin-top:24px;">
+          This is an automatic notification for administrators. Remember to review the customer's options (pickup vs refund) according to your policy.
+        </p>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+// --- Envío al admin: Delivery CANCELLED ---
+async function sendAdminDeliveryCancelledNotification(
+  deps,
+  { order, delivery, to, subject, brand, logoUrl }
+) {
+  const adminTo = to || process.env.ADMIN_EMAIL;
+  if (!safe(adminTo)) return;
+
+  const html = renderAdminDeliveryCancelledEmailHTML(order, delivery, {
+    brand,
+    logoUrl,
+  });
+
+  const email = {
+    to: adminTo,
+    subject:
+      subject ||
+      `Delivery cancelled — Order #${order?.orderNumber} | Nox Cookie Bar`,
+    html,
+  };
+
+  return deps.sendEmail(email);
+}
 
 // --- Helpers mínimos necesarios ---
 const safe = (v) => v !== null && v !== undefined && String(v).trim() !== "";
@@ -215,7 +372,10 @@ async function sendAdminNewOrderNotification(deps, { order, to, subject, brand, 
   return deps.sendEmail(email);
 }
 
+
 module.exports = {
   renderAdminNewOrderEmailHTML,
+    renderAdminDeliveryCancelledEmailHTML,     
+  sendAdminDeliveryCancelledNotification,   
   sendAdminNewOrderNotification,
 };
