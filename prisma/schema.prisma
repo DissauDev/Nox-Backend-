@@ -131,18 +131,23 @@ model OrderItem {
 
 /// Orden principal
 model Order {
-  id                      String      @id @default(uuid())
-  orderNumber             String      @unique
-  status                  OrderStatus @default(PROCESSING)
-  createdAt               DateTime    @default(now())
-  totalAmount             Float
-  subtotal                Float
-  paymentMethod           String
-  stripePaymentIntentId   String?
-  userId                  String?
-  user                    User?       @relation(fields: [userId], references: [id])
-  checkoutRequestId       String?     @unique
-  failureDetails          Json?
+  id                    String      @id @default(uuid())
+  orderNumber           String      @unique
+  status                OrderStatus @default(PROCESSING)
+  createdAt             DateTime    @default(now())
+  totalAmount           Float
+  subtotal              Float
+  paymentMethod         String
+  stripePaymentIntentId String?
+  userId                String?
+  user                  User?       @relation(fields: [userId], references: [id])
+  checkoutRequestId     String?     @unique
+  failureDetails        Json?
+
+  //  tracking de refunds
+  refundedAmount          Float     @default(0) // cuánto se ha devuelto en total (USD)
+  lastRefundAt            DateTime?
+  refundReason            String? // motivo de la devolución
   // Datos del cliente
   customerName            String
   customerLastname        String?
@@ -159,9 +164,9 @@ model Order {
 
   fulfillmentType FulfillmentType @default(PICKUP)
   specifications  String?         @default("")
-
-  items    OrderItem[]
-  delivery Delivery? //  relación 1–1 con Delivery
+  notesFromStore  String?         @default("")
+  items           OrderItem[]
+  delivery        Delivery? //  relación 1–1 con Delivery
 }
 
 model Delivery {
@@ -171,20 +176,20 @@ model Delivery {
   orderId String @unique
   order   Order  @relation(fields: [orderId], references: [id])
 
-  provider DeliveryProvider @default(DOORDASH)
-
-  externalDeliveryId String  @unique
+  provider           DeliveryProvider @default(DOORDASH)
+  deliveryRefunded   Boolean?         @default(false)
+  externalDeliveryId String           @unique
   doordashDeliveryId String?
 
   status DeliveryStatus @default(REQUESTED)
 
   // Datos de entrega
-  pickupAddress  String?
-  dropoffAddress String?
-  dropoffName    String?
-  dropoffPhone   String?
-
-  trackingUrl String?
+  pickupAddress      String?
+  dropoffAddress     String?
+  dropoffName        String?
+  dropoffPhone       String?
+  deliveryRefundedAt DateTime?
+  trackingUrl        String?
 
   // Costos
   deliveryFee Float?

@@ -426,62 +426,7 @@ const deleteOrder = async (req, res) => {
   }
 };
 
-const refundOrder = async (req, res) => {
-   
-  const { id } = req.params;               // id de la orden en tu base
-  const { totalAmount } = req.body;        // monto a reembolsar (en dólares), opcional
 
-  try {
-    // 1️⃣ recupera la orden de tu base
-    const order = await prisma.order.findUnique({ where: { id } });
-    if (!order) {
-      return res.status(404).json({ success: false, message: 'Orden not found' });
-    }
-
-    // 2️⃣ haz el refund en Stripe
-    const refundParams = { payment_intent: order.stripePaymentIntentId };
-    if (totalAmount) {
-      // Stripe espera la clave `amount` en centavos
-      refundParams.amount = Math.round(totalAmount * 100);
-    }
-
-    let refund;
-    try {
-      refund = await stripe.refunds.create(refundParams);
-    } catch (error) {
-      // Si ya se había reembolsado esa carga, devolvemos 400 en vez de 500
-      if (error.type === 'StripeInvalidRequestError' && error.code === 'charge_already_refunded') {
-        return res.status(400).json({
-          success: false,
-          message: 'This charge has already been refunded.'
-        });
-      }
-      // cualquier otro error lo propagamos
-      throw error;
-    }
-
-    // 3️⃣ actualiza la orden en tu base
-    await prisma.order.update({
-      where: { id },
-      data: {
-        status: 'REFUNDED',
-        stripePaymentIntentId: refund.id, // guarda el id del refund
-        // ajusta el totalAmount si es un reembolso parcial
-        totalAmount: order.totalAmount - (totalAmount ?? order.totalAmount),
-      },
-    });
-
-    // 4️⃣ responde con éxito
-    return res.status(200).json({ success: true, refund });
-  } catch (err) {
-    console.error('Error al reembolsar la orden:', err);
-    return res.status(500).json({
-      success: false,
-      message: 'Error processing the refund',
-      error: err.message,
-    });
-  }
-};
 
 const convertOrderToPickup = async (req, res) => {
   const { id } = req.params; // id de la orden
@@ -564,6 +509,152 @@ const convertOrderToPickup = async (req, res) => {
   }
 };
 
+const refundOrder = async (req, res) => {
+  const { id } = req.params;          // orderId
+  const { totalAmount, refundReason } = req.body;   // opcional: monto solicitado a reembolsar (USD)
+console.log(refundReason);
+
+  try {
+    // 1️⃣ Recuperar la orden con la info de delivery (por si la necesitas para UI)
+    const order = await prisma.order.findUnique({
+      where: { id },
+      include: {
+        delivery: true,
+      },
+    });
+
+    if (!order) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Order not found" });
+    }
+
+    if (!order.stripePaymentIntentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Order does not have a Stripe payment intent",
+      });
+    }
+
+    const originalTotalUsd = Number(order.totalAmount || 0);
+    const alreadyRefundedUsd = Number(order.refundedAmount || 0);
+
+    // 2️⃣ Monto máximo que todavía se puede devolver
+    const maxRefundableUsd = Math.max(originalTotalUsd - alreadyRefundedUsd, 0);
+
+    if (maxRefundableUsd <= 0) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "There is no remaining amount to refund for this order.",
+        details: {
+          originalTotalUsd,
+          alreadyRefundedUsd,
+          maxRefundableUsd,
+        },
+      });
+    }
+
+    // 3️⃣ Determinar cuánto vamos a reembolsar en ESTA llamada
+    //    - Si viene totalAmount -> refund parcial
+    //    - Si no viene -> refund total restante
+    const requestedRefundUsd =
+      totalAmount != null ? Number(totalAmount) : null;
+
+    if (requestedRefundUsd != null && requestedRefundUsd <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Refund amount must be greater than 0.",
+      });
+    }
+
+    const amountToRefundUsd =
+      requestedRefundUsd != null ? requestedRefundUsd : maxRefundableUsd;
+
+    // pequeña tolerancia por redondeos
+    if (amountToRefundUsd > maxRefundableUsd + 0.0001) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Requested refund exceeds the remaining refundable amount.",
+        details: {
+          requestedRefundUsd: amountToRefundUsd,
+          maxRefundableUsd,
+          alreadyRefundedUsd,
+          originalTotalUsd,
+        },
+      });
+    }
+
+    const amountCents = Math.round(amountToRefundUsd * 100);
+
+    // 4️⃣ Hacer refund en Stripe
+    const refundParams = {
+      payment_intent: order.stripePaymentIntentId,
+      amount: amountCents,
+    };
+
+    let refund;
+    try {
+      refund = await stripe.refunds.create(refundParams);
+    } catch (error) {
+      if (
+        error.type === "StripeInvalidRequestError" &&
+        error.code === "charge_already_refunded"
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "This charge has already been fully refunded.",
+        });
+      }
+      throw error;
+    }
+    const refundTextReason = refundReason ? ` (${order.refundReason})` : "";
+
+    // 5️⃣ Actualizar la orden en tu base
+    const updatedRefundedAmount = alreadyRefundedUsd + amountToRefundUsd;
+
+    // ¿Quedó totalmente devuelta?
+    const fullyRefunded =
+      updatedRefundedAmount >= originalTotalUsd - 0.0001;
+
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: {
+        status: fullyRefunded ? "REFUNDED" : order.status,
+        refundedAmount: updatedRefundedAmount,
+        refundReason:refundTextReason,
+        lastRefundAt: new Date(),
+        // opcional: si quieres guardar último refund id
+        // lastStripeRefundId: refund.id,
+      },
+      include: {
+        delivery: true,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      refund,
+      order: updatedOrder,
+      meta: {
+        originalTotalUsd,
+        alreadyRefundedUsd,
+        maxRefundableUsd,
+        amountToRefundUsd,
+        updatedRefundedAmount,
+        fullyRefunded,
+      },
+    });
+  } catch (err) {
+    console.error("Errorrefunding the order:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Error processing the refund",
+      error: err.message,
+    });
+  }
+};
 
 
 module.exports = {

@@ -190,6 +190,50 @@ async function runDeliveryCheckout(payload) {
   let ddData = null;
   let acceptBody = null;
 
+
+    // 2.5) Construir items para DoorDash (Item Level Details)
+  //    - name (requerido)
+  //    - quantity (requerido)
+  //    - external_id (opcional, pero útil)
+  //    - description (opcional)
+  const productIds = items.map((i) => i.productId);
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: {
+      id: true,
+      name: true,
+      // description: true, // si tu modelo la tiene
+    },
+  });
+
+  const ddItems = items.map((it) => {
+    const prod = products.find((p) => p.id === it.productId);
+    const baseName = prod?.name || "Item";
+
+    // Opcional: construimos una description amigable con opciones + notas
+    let descriptionParts = [];
+
+    if (Array.isArray(it.options) && it.options.length > 0) {
+      const optsText = it.options
+        .map((opt) => `${opt.groupName}: ${opt.name}`)
+        .join(" | ");
+      descriptionParts.push(`Options: ${optsText}`);
+    }
+
+    if (it?.specifications) {
+      descriptionParts.push(`Notes: ${it.specifications}`);
+    }
+
+    return {
+      name: baseName,                 // required
+      quantity: Number(it.quantity),  // required
+      external_id: it.productId,      // opcional pero recomendado
+      description:
+        descriptionParts.length > 0 ? descriptionParts.join(" || ") : undefined,
+    };
+  });
+
   try {
     // 3) STRIPE: authorize
     // Si ya teníamos stripePaymentIntentId guardado (retry), lo ideal es:
@@ -233,11 +277,16 @@ async function runDeliveryCheckout(payload) {
     const tipCents = toTipCents(tip);
     const accepted = await acceptQuote({
       externalDeliveryId,
+      items: ddItems, 
       tip: tipCents, // tu servicio decide si lo manda o no
     });
     ddData = accepted.ddData;
     acceptBody = accepted.acceptBody;
 
+    console.log("[DoorDash] acceptQuote ddData keys:", Object.keys(ddData));
+console.log("[DoorDash] acceptQuote ddData.external_delivery_id:", ddData.external_delivery_id);
+console.log("[DoorDash] acceptQuote ddData.delivery_id:", ddData.delivery_id);
+console.log("[DoorDash] acceptQuote full ddData:", JSON.stringify(ddData, null, 2));
     // 5) Crear delivery SOLO si no existe ya (retry-safe)
     // Como Order tiene relación 1-1 Delivery?, evita duplicar:
     let delivery = await prisma.delivery.findUnique({
@@ -246,6 +295,12 @@ async function runDeliveryCheckout(payload) {
 
     if (!delivery) {
       const deliveryStatus = mapDoorDashStatusToPrisma(ddData.delivery_status);
+
+        console.log("[Delivery] Creating delivery for order", pendingOrder.id, {
+    externalDeliveryIdFromDd: ddData.external_delivery_id,
+    externalDeliveryIdFromPayload: externalDeliveryId,
+    deliveryIdFromDd: ddData.delivery_id,
+  });
 
       const DELIVERY_SUPPORTS_DRIVER_INSTRUCTIONS =
         process.env.DELIVERY_SUPPORTS_DRIVER_INSTRUCTIONS === "true";
