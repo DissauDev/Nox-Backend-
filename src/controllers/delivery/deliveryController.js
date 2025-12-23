@@ -32,7 +32,6 @@ async function getDeliveryQuote(req, res) {
      pickup_instructions
     } = req.body;
 
-    console.log("getDeliveryQuote", dropoffPhoneNumber);
 
     if (!dropoffAddress || !dropoffPhoneNumber || !orderValue) {
       return res.status(400).json({

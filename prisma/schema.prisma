@@ -23,32 +23,48 @@ model Category {
   @@index([sortOrder, name])
 }
 
+model ProductCateringTier {
+  id        String  @id @default(uuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+
+  minQty Int // desde esta cantidad (incluida)
+  maxQty Int? // hasta esta cantidad (incluida); null = infinito
+  price  Float // precio unitario para este rango
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, minQty, maxQty])
+}
+
 /// Producto principal
 model Product {
-  id                  String              @id @default(uuid())
-  name                String              @unique
+  id                  String                @id @default(uuid())
+  name                String                @unique
   price               Float
-  salePrice           Float?              @map("sellPrice")
+  salePrice           Float?                @map("sellPrice")
   specifications      String?
   description         String?
   imageLeft           Json? // { url, blurHash }
   imageRight          Json?
-  type                ProductType         @default(REGULAR)
-  status              ProductStatus       @default(AVAILABLE)
+  type                ProductType           @default(REGULAR)
+  status              ProductStatus         @default(AVAILABLE)
   categoryId          String
-  category            Category            @relation(fields: [categoryId], references: [id])
+  category            Category              @relation(fields: [categoryId], references: [id])
   options             ProductOption[]
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
   OrderItem           OrderItem[]
-  sortOrder           Int                 @default(1)
+  sortOrder           Int                   @default(1)
   OptionValue         OptionValue[]
-  isOptionItem        Boolean             @default(false) // checkbox “usar como opción”
-  packOptionSurcharge Float               @default(0) // “precio para la caja”
+  isOptionItem        Boolean               @default(false) // checkbox “usar como opción”
+  packOptionSurcharge Float                 @default(0) // “precio para la caja”
   packMaxItems        Int?
-  hasSpecifications   Boolean             @default(false) // muestra el campo de especificaciones
-  specificationsTitle String?             @default("Specifications") // título personalizado para las especificaciones
-  availability        ProductAvailability @default(BOTH) // ✅ NUEVO
+  hasSpecifications   Boolean               @default(false) // muestra el campo de especificaciones
+  specificationsTitle String?               @default("Specifications") // título personalizado para las especificaciones
+  availability        ProductAvailability   @default(BOTH) // ✅ NUEVO
+  hasCatering         Boolean               @default(false)
+  cateringTiers       ProductCateringTier[]
 
   @@index([status])
   @@index([categoryId, sortOrder, name]) // orden y búsquedas por categoría

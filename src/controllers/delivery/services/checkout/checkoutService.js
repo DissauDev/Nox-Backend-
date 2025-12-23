@@ -278,15 +278,12 @@ async function runDeliveryCheckout(payload) {
     const accepted = await acceptQuote({
       externalDeliveryId,
       items: ddItems, 
-      tip: tipCents, // tu servicio decide si lo manda o no
+      tip: tipCents,
     });
     ddData = accepted.ddData;
     acceptBody = accepted.acceptBody;
 
-    console.log("[DoorDash] acceptQuote ddData keys:", Object.keys(ddData));
-console.log("[DoorDash] acceptQuote ddData.external_delivery_id:", ddData.external_delivery_id);
-console.log("[DoorDash] acceptQuote ddData.delivery_id:", ddData.delivery_id);
-console.log("[DoorDash] acceptQuote full ddData:", JSON.stringify(ddData, null, 2));
+
     // 5) Crear delivery SOLO si no existe ya (retry-safe)
     // Como Order tiene relación 1-1 Delivery?, evita duplicar:
     let delivery = await prisma.delivery.findUnique({
@@ -295,12 +292,6 @@ console.log("[DoorDash] acceptQuote full ddData:", JSON.stringify(ddData, null, 
 
     if (!delivery) {
       const deliveryStatus = mapDoorDashStatusToPrisma(ddData.delivery_status);
-
-        console.log("[Delivery] Creating delivery for order", pendingOrder.id, {
-    externalDeliveryIdFromDd: ddData.external_delivery_id,
-    externalDeliveryIdFromPayload: externalDeliveryId,
-    deliveryIdFromDd: ddData.delivery_id,
-  });
 
       const DELIVERY_SUPPORTS_DRIVER_INSTRUCTIONS =
         process.env.DELIVERY_SUPPORTS_DRIVER_INSTRUCTIONS === "true";
@@ -328,7 +319,7 @@ console.log("[DoorDash] acceptQuote full ddData:", JSON.stringify(ddData, null, 
           deliveryFee: typeof ddData.fee === "number" ? ddData.fee / 100 : null,
           tipAmount: typeof ddData.tip === "number" ? ddData.tip / 100 : null,
           currency: ddData.currency || "USD",
-
+          
           driverName: ddData.dasher_name || null,
           driverPhone: ddData.dasher_dropoff_phone_number || null,
 

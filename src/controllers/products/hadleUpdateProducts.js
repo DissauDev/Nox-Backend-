@@ -1,5 +1,71 @@
 const { prisma } = require('../../lib/prisma');
-const {generateImageData} = require('../../middlewares/generateImageData');
+const { generateImageData } = require('../../middlewares/generateImageData');
+
+function parseCateringTiersForUpdate(cateringTiersRaw) {
+  if (cateringTiersRaw == null) {
+    return [];
+  }
+
+  let raw = cateringTiersRaw;
+
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      throw new Error('Field cateringTiers must be valid JSON');
+    }
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new Error('Field cateringTiers must be an array');
+  }
+
+  if (raw.length === 0) {
+    return [];
+  }
+
+  let tiers = raw.map((t, idx) => {
+    const minQty = Number(t.minQty);
+    const maxQty = t.maxQty == null ? null : Number(t.maxQty);
+    const price = Number(t.price);
+
+    if (!Number.isInteger(minQty) || minQty <= 0) {
+      throw new Error(`Invalid minQty at catering tier index ${idx}`);
+    }
+    if (maxQty != null && (!Number.isInteger(maxQty) || maxQty < minQty)) {
+      throw new Error(`Invalid maxQty at catering tier index ${idx}`);
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error(`Invalid price at catering tier index ${idx}`);
+    }
+
+    return { minQty, maxQty, price };
+  });
+
+  // Ordenar por minQty
+  tiers.sort((a, b) => a.minQty - b.minQty);
+
+  // Validar solapes y posición del rango infinito
+  for (let i = 0; i < tiers.length; i++) {
+    const current = tiers[i];
+
+    if (current.maxQty == null && i !== tiers.length - 1) {
+      throw new Error(
+        'Tier with maxQty = null (infinite) must be the last one'
+      );
+    }
+
+    if (i > 0) {
+      const prev = tiers[i - 1];
+      const prevEnd = prev.maxQty ?? Infinity;
+      if (current.minQty <= prevEnd) {
+        throw new Error('Catering tiers ranges must not overlap');
+      }
+    }
+  }
+
+  return tiers;
+}
 
 async function hadleUpdateProduct(req, res) {
   try {
@@ -25,14 +91,15 @@ async function hadleUpdateProduct(req, res) {
       packOptionSurcharge,
       packMaxItems,
       sortOrder,
-      availability,    
+      availability,
       hasSpecifications,
-       specificationsTitle        // <-- sortOrder del producto dentro de su categoría (opcional)
+      specificationsTitle,
+      hasCatering,        // boolean
+      cateringTiers,      // rangos de catering
     } = req.body;
 
-    console.log('Updating product:', {
-      specificationsTitle,
-      hasSpecifications,})
+ 
+
     // ----- Normalizaciones / Validaciones básicas
     const updateData = {};
 
@@ -40,22 +107,33 @@ async function hadleUpdateProduct(req, res) {
     if (name && name !== existing.name) {
       const clash = await prisma.product.findUnique({ where: { name } });
       if (clash) {
-        return res.status(400).json({ message: 'There is a product whith the same name' });
+        return res.status(400).json({
+          message: 'There is a product whith the same name',
+        });
       }
       updateData.name = name;
     }
 
     if (description !== undefined) updateData.description = description;
     if (price !== undefined) updateData.price = parseFloat(price);
-    if (salePrice !== undefined) updateData.salePrice = salePrice === null ? null : parseFloat(salePrice);
-    if (specifications !== undefined) updateData.specifications = specifications;
+    if (salePrice !== undefined) {
+      updateData.salePrice =
+        salePrice === null ? null : parseFloat(salePrice);
+    }
+    if (specifications !== undefined) {
+      updateData.specifications = specifications;
+    }
 
     // Cambios de categoría
     let targetCategoryId = existing.categoryId;
     let categoryChanged = false;
     if (category) {
-      const cat = await prisma.category.findUnique({ where: { name: category } });
-      if (!cat) return res.status(400).json({ message: 'Invalid Category' });
+      const cat = await prisma.category.findUnique({
+        where: { name: category },
+      });
+      if (!cat) {
+        return res.status(400).json({ message: 'Invalid Category' });
+      }
       targetCategoryId = cat.id;
       if (targetCategoryId !== existing.categoryId) {
         categoryChanged = true;
@@ -66,33 +144,59 @@ async function hadleUpdateProduct(req, res) {
     // Imágenes (si se proveen URLs para reprocesar)
     if (imageLeftUrl) {
       const imgL = await generateImageData(imageLeftUrl);
-      if (!imgL) return res.status(400).json({ message: 'Error to get imageLeft' });
+      if (!imgL) {
+        return res
+          .status(400)
+          .json({ message: 'Error to get imageLeft' });
+      }
       updateData.imageLeft = imgL;
     }
     if (imageRightUrl) {
       const imgR = await generateImageData(imageRightUrl);
-      if (!imgR) return res.status(400).json({ message: 'Error to get image right' });
+      if (!imgR) {
+        return res
+          .status(400)
+          .json({ message: 'Error to get image right' });
+      }
       updateData.imageRight = imgR;
     }
 
     if (type) updateData.type = type;
     if (status) updateData.status = status;
-    if(availability) updateData.availability = availability;  
-    if (isOptionItem !== undefined) updateData.isOptionItem = !!isOptionItem;
-    if (packOptionSurcharge !== undefined) updateData.packOptionSurcharge = Number(packOptionSurcharge) || 0;
-    if (packMaxItems !== undefined) updateData.packMaxItems = packMaxItems === null ? null : Number(packMaxItems);
-    if (hasSpecifications !== undefined) updateData.hasSpecifications = !!hasSpecifications;
-if (specificationsTitle !== undefined) {
-  updateData.specificationsTitle =
-    specificationsTitle === "" ? null : String(specificationsTitle);
-}
+    if (availability) updateData.availability = availability;
+    if (isOptionItem !== undefined) {
+      updateData.isOptionItem = !!isOptionItem;
+    }
+    if (packOptionSurcharge !== undefined) {
+      updateData.packOptionSurcharge =
+        Number(packOptionSurcharge) || 0;
+    }
+    if (packMaxItems !== undefined) {
+      updateData.packMaxItems =
+        packMaxItems === null ? null : Number(packMaxItems);
+    }
+    if (hasSpecifications !== undefined) {
+      updateData.hasSpecifications = !!hasSpecifications;
+    }
+    if (specificationsTitle !== undefined) {
+      updateData.specificationsTitle =
+        specificationsTitle === ''
+          ? null
+          : String(specificationsTitle);
+    }
 
-    
+    // nuevo flag hasCatering
+    if (hasCatering !== undefined) {
+      updateData.hasCatering = !!hasCatering;
+    }
+
     // sortOrder del PRODUCTO dentro de su categoría
     if (sortOrder !== undefined && String(sortOrder).trim() !== '') {
       const n = Number(sortOrder);
       if (!Number.isInteger(n) || n < 0) {
-        return res.status(400).json({ message: 'sortOrder must be a non-negative integer' });
+        return res.status(400).json({
+          message: 'sortOrder must be a non-negative integer',
+        });
       }
       updateData.sortOrder = n;
     } else if (categoryChanged) {
@@ -110,21 +214,37 @@ if (specificationsTitle !== undefined) {
       try {
         const arr = typeof options === 'string' ? JSON.parse(options) : options;
         if (!Array.isArray(arr)) {
-          return res.status(400).json({ message: 'options must be an array of OptionGroup IDs' });
+          return res.status(400).json({
+            message: 'options must be an array of OptionGroup IDs',
+          });
         }
         // normaliza: quita falsy/duplicados preservando orden
         const seen = new Set();
         orderedGroupIds = arr.filter((x) => {
-          const ok = typeof x === 'string' && x.trim().length > 0 && !seen.has(x);
+          const ok =
+            typeof x === 'string' &&
+            x.trim().length > 0 &&
+            !seen.has(x);
           if (ok) seen.add(x);
           return ok;
         });
       } catch {
-        return res.status(400).json({ message: 'options must be a valid JSON array' });
+        return res.status(400).json({
+          message: 'options must be a valid JSON array',
+        });
       }
     }
 
-    // ----- Transacción: update del producto + reorden/alta/baja de opciones
+    let parsedCateringTiers = undefined;
+    if (cateringTiers !== undefined) {
+      try {
+        parsedCateringTiers = parseCateringTiersForUpdate(cateringTiers);
+      } catch (e) {
+        return res.status(400).json({ message: e.message });
+      }
+    }
+
+    // ----- Transacción: update del producto + reorden/alta/baja de opciones + catering tiers
     const result = await prisma.$transaction(async (tx) => {
       // 1) Actualiza el producto base
       const updated = await tx.product.update({
@@ -132,59 +252,83 @@ if (specificationsTitle !== undefined) {
         data: updateData,
       });
 
-      // 2) Si NO enviaron "options", terminamos aquí
-      if (orderedGroupIds === undefined) {
-        return updated;
-      }
-
-      // 3) Obtener opciones actuales (por producto)
-      const current = await tx.productOption.findMany({
-        where: { productId: id },
-        select: { id: true, groupId: true, sortOrder: true },
-        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
-      });
-
-      const currentMap = new Map(current.map((r) => [r.groupId, r]));
-      const currentIds = new Set(current.map((r) => r.groupId));
-      const desiredIds = new Set(orderedGroupIds);
-
-      // 4) Eliminar las que ya no estén
-      const toRemove = [...currentIds].filter((gid) => !desiredIds.has(gid));
-      if (toRemove.length > 0) {
-        await tx.productOption.deleteMany({
-          where: { productId: id, groupId: { in: toRemove } },
+      // 2) Opciones de producto (si NO enviaron "options", no tocamos)
+      if (orderedGroupIds !== undefined) {
+        // Obtener opciones actuales (por producto)
+        const current = await tx.productOption.findMany({
+          where: { productId: id },
+          select: { id: true, groupId: true, sortOrder: true },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
         });
-      }
 
-      // 5) Crear/actualizar cada groupId en el orden recibido
-      //    sortOrder = índice 0-based (o usa gaps si prefieres)
-      for (let idx = 0; idx < orderedGroupIds.length; idx++) {
-        const gid = orderedGroupIds[idx];
+        const currentMap = new Map(
+          current.map((r) => [r.groupId, r])
+        );
+        const currentIds = new Set(current.map((r) => r.groupId));
+        const desiredIds = new Set(orderedGroupIds);
 
-        // valida que el OptionGroup exista
-        const existsGroup = await tx.optionGroup.findUnique({ where: { id: gid }, select: { id: true } });
-        if (!existsGroup) {
-          throw new Error(`OptionGroup not found: ${gid}`);
+        // Eliminar las que ya no estén
+        const toRemove = [...currentIds].filter(
+          (gid) => !desiredIds.has(gid)
+        );
+        if (toRemove.length > 0) {
+          await tx.productOption.deleteMany({
+            where: { productId: id, groupId: { in: toRemove } },
+          });
         }
 
-        const existingPO = currentMap.get(gid);
+        // Crear/actualizar cada groupId en el orden recibido
+        for (let idx = 0; idx < orderedGroupIds.length; idx++) {
+          const gid = orderedGroupIds[idx];
 
-        if (existingPO) {
-          // Update sortOrder si cambió
-          if (existingPO.sortOrder !== idx) {
-            await tx.productOption.updateMany({
-              where: { productId: id, groupId: gid },
-              data: { sortOrder: idx },
+          // valida que el OptionGroup exista
+          const existsGroup = await tx.optionGroup.findUnique({
+            where: { id: gid },
+            select: { id: true },
+          });
+          if (!existsGroup) {
+            throw new Error(`OptionGroup not found: ${gid}`);
+          }
+
+          const existingPO = currentMap.get(gid);
+
+          if (existingPO) {
+            // Update sortOrder si cambió
+            if (existingPO.sortOrder !== idx) {
+              await tx.productOption.updateMany({
+                where: { productId: id, groupId: gid },
+                data: { sortOrder: idx },
+              });
+            }
+          } else {
+            // Crear relación nueva con el sortOrder correspondiente
+            await tx.productOption.create({
+              data: {
+                productId: id,
+                groupId: gid,
+                sortOrder: idx,
+              },
             });
           }
-        } else {
-          // Crear relación nueva con el sortOrder correspondiente
-          await tx.productOption.create({
-            data: {
+        }
+      }
+
+      // 3) Catering tiers (si se enviaron)
+      if (parsedCateringTiers !== undefined) {
+        // borrar todos los rangos actuales
+        await tx.productCateringTier.deleteMany({
+          where: { productId: id },
+        });
+
+        // crear nuevos si hay
+        if (parsedCateringTiers.length > 0) {
+          await tx.productCateringTier.createMany({
+            data: parsedCateringTiers.map((t) => ({
               productId: id,
-              groupId: gid,
-              sortOrder: idx,
-            },
+              minQty: t.minQty,
+              maxQty: t.maxQty,
+              price: t.price,
+            })),
           });
         }
       }
@@ -198,4 +342,5 @@ if (specificationsTitle !== undefined) {
     return res.status(500).json({ message: 'Internal server error' });
   }
 }
+
 module.exports = { hadleUpdateProduct };

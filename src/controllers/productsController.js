@@ -58,6 +58,10 @@ async function getAllProducts(req, res) {
         include: {
           category: { select: { id: true, name: true, sortOrder: true } },
           options:  { select: { groupId: true } },
+           cateringTiers: {
+          select: { id: true, product: true, productId:true,
+             minQty:true, maxQty:true,price:true   },
+        },
         },
         orderBy,
         skip,
@@ -100,6 +104,10 @@ async function getProductById(req, res) {
         // 1) Categoría
         category: {
           select: { id: true, name: true },
+        },
+        cateringTiers: {
+          select: { id: true, product: true, productId:true,
+             minQty:true, maxQty:true,price:true   },
         },
 
         options: {

@@ -5,7 +5,7 @@ const { HttpError } = require("../errors/httpError");
 
 const { DOORDASH_API_BASE = "https://openapi.doordash.com" } = process.env;
 
-async function acceptQuote({ externalDeliveryId, tip,items }) {
+async function acceptQuote({ externalDeliveryId, tip,items, }) {
   const ddJwt = createDoorDashJwt();
 
    const tipCents = tip == null ? null : Number(tip);
@@ -18,8 +18,9 @@ async function acceptQuote({ externalDeliveryId, tip,items }) {
   }
 
   if (Array.isArray(items) && items.length > 0) {
-    acceptBody.items = items;   // 👈 AQUÍ SÍ VAN LOS ITEMS
+    acceptBody.items = items;   
   }
+
   
   try {
     const ddResponse = await axios.post(
@@ -70,11 +71,7 @@ async function cancelDoorDashDelivery({
 
   const url = `${DOORDASH_API_BASE}/drive/v2/deliveries/${externalDeliveryId}/cancel`;
 
-  console.log("[DD] Cancelling Drive delivery", {
-    url,
-    externalDeliveryId,
-    body,
-  });
+
 
   try {
     const resp = await axios.put(url, body, {

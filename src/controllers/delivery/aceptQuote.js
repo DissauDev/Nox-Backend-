@@ -15,7 +15,6 @@ const acceptDeliveryQuoteAndCreateOrder = async (req, res) => {
   } catch (err) {
     console.log(err);
     const e = toPublicError(err);
-    console.log(err);
     return res.status(e.status || 500).json({
       success: false,
       code: e.code || "ERROR",
