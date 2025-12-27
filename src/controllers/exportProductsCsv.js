@@ -53,6 +53,7 @@ function productToRow(p) {
   const imageRightUrl = right?.url ?? '';
   const optionsJson   = JSON.stringify((p.options || []).map(o => o.groupId));
 
+  
   return [
     p.name ?? '',
     p.description ?? '',
