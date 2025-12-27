@@ -174,7 +174,12 @@ async function handleCreateProduct(req, res) {
       hasSpecifications,
       specificationsTitle,
       hasCatering, // boolean
-      cateringTiers, // rangos de catering
+      cateringTiers,
+      cateringName,
+      cateringDescription,
+      cateringMinQty,
+      descriptionPriceCatering,
+      onlyForCatering, // rangos de catering
     } = req.body;
 
     // 1) Unicidad por name
@@ -190,6 +195,23 @@ async function handleCreateProduct(req, res) {
     if (!cat) {
       return res.status(400).json({ message: 'Invalid Category' });
     }
+    const hasCateringFlag = !!hasCatering;
+const onlyForCateringFlag = !!onlyForCatering;
+
+
+// Un producto "onlyForCatering" tiene sentido solo si tiene modo catering activo
+if (onlyForCateringFlag && !hasCateringFlag) {
+  return res.status(400).json({
+    message: 'If onlyForCatering is true, hasCatering must also be true.',
+  });
+}
+// Un producto "onlyForCatering" tiene sentido solo si tiene modo catering activo
+if (onlyForCateringFlag && !hasCateringFlag ) {
+  return res.status(400).json({
+    message: 'If onlyForCatering is true, hasCatering must also be true.',
+  });
+}
+
 
     // 3) Imágenes
     const imageLeft = await generateImageData(imageLeftUrl);
@@ -225,13 +247,14 @@ async function handleCreateProduct(req, res) {
       return res.status(400).json({ message: e.message });
     }
 
-    // 5) Parsear y validar rangos de catering
-    let parsedCateringTiers = [];
-    try {
-      parsedCateringTiers = parseCateringTiers(cateringTiers, !!hasCatering);
-    } catch (e) {
-      return res.status(400).json({ message: e.message });
-    }
+  let parsedCateringTiers = [];
+try {
+  const someCateringMode = !!hasCateringFlag || !!onlyForCateringFlag;
+  parsedCateringTiers = parseCateringTiers(cateringTiers, someCateringMode);
+} catch (e) {
+  return res.status(400).json({ message: e.message });
+}
+
 
     // 6) sortOrder del producto por categoría
     let sortOrderToUse;
@@ -266,9 +289,12 @@ async function handleCreateProduct(req, res) {
           sortOrder: sortOrderToUse,
           hasSpecifications: !!hasSpecifications,
           specificationsTitle: specificationsTitle || undefined,
-
-          // 👇 nuevo flag
+         cateringName,
+      cateringDescription,
+      cateringMinQty,
+      descriptionPriceCatering,
           hasCatering: !!hasCatering,
+            onlyForCatering: onlyForCateringFlag,
         },
       });
 

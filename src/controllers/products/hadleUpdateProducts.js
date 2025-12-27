@@ -42,6 +42,8 @@ function parseCateringTiersForUpdate(cateringTiersRaw) {
     return { minQty, maxQty, price };
   });
 
+  
+
   // Ordenar por minQty
   tiers.sort((a, b) => a.minQty - b.minQty);
 
@@ -59,6 +61,7 @@ function parseCateringTiersForUpdate(cateringTiersRaw) {
       const prev = tiers[i - 1];
       const prevEnd = prev.maxQty ?? Infinity;
       if (current.minQty <= prevEnd) {
+   
         throw new Error('Catering tiers ranges must not overlap');
       }
     }
@@ -67,6 +70,16 @@ function parseCateringTiersForUpdate(cateringTiersRaw) {
   return tiers;
 }
 
+function normalizeBoolean(value) {
+  if (value === undefined) return undefined;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const v = value.toLowerCase().trim();
+    if (v === 'true' || v === '1') return true;
+    if (v === 'false' || v === '0') return false;
+  }
+  return Boolean(value);
+}
 async function hadleUpdateProduct(req, res) {
   try {
     const { id } = req.params;
@@ -94,13 +107,16 @@ async function hadleUpdateProduct(req, res) {
       availability,
       hasSpecifications,
       specificationsTitle,
-      hasCatering,        // boolean
-      cateringTiers,      // rangos de catering
+      hasCatering,
+      onlyForCatering,        // boolean
+      cateringTiers,
+       cateringName,
+      cateringDescription,
+      cateringMinQty,
+      descriptionPriceCatering,      
     } = req.body;
 
- 
-
-    // ----- Normalizaciones / Validaciones básicas
+  // ----- Normalizaciones / Validaciones básicas
     const updateData = {};
 
     // name (único)
@@ -108,7 +124,7 @@ async function hadleUpdateProduct(req, res) {
       const clash = await prisma.product.findUnique({ where: { name } });
       if (clash) {
         return res.status(400).json({
-          message: 'There is a product whith the same name',
+          message: 'There is a product with the same name',
         });
       }
       updateData.name = name;
@@ -118,7 +134,9 @@ async function hadleUpdateProduct(req, res) {
     if (price !== undefined) updateData.price = parseFloat(price);
     if (salePrice !== undefined) {
       updateData.salePrice =
-        salePrice === null ? null : parseFloat(salePrice);
+        salePrice === null || salePrice === ''
+          ? null
+          : parseFloat(salePrice);
     }
     if (specifications !== undefined) {
       updateData.specifications = specifications;
@@ -147,7 +165,7 @@ async function hadleUpdateProduct(req, res) {
       if (!imgL) {
         return res
           .status(400)
-          .json({ message: 'Error to get imageLeft' });
+          .json({ message: 'Error processing imageLeft' });
       }
       updateData.imageLeft = imgL;
     }
@@ -156,7 +174,7 @@ async function hadleUpdateProduct(req, res) {
       if (!imgR) {
         return res
           .status(400)
-          .json({ message: 'Error to get image right' });
+          .json({ message: 'Error processing imageRight' });
       }
       updateData.imageRight = imgR;
     }
@@ -164,20 +182,28 @@ async function hadleUpdateProduct(req, res) {
     if (type) updateData.type = type;
     if (status) updateData.status = status;
     if (availability) updateData.availability = availability;
-    if (isOptionItem !== undefined) {
-      updateData.isOptionItem = !!isOptionItem;
+
+    const normIsOptionItem = normalizeBoolean(isOptionItem);
+    if (normIsOptionItem !== undefined) {
+      updateData.isOptionItem = normIsOptionItem;
     }
+
     if (packOptionSurcharge !== undefined) {
-      updateData.packOptionSurcharge =
-        Number(packOptionSurcharge) || 0;
+      updateData.packOptionSurcharge = Number(packOptionSurcharge) || 0;
     }
+
     if (packMaxItems !== undefined) {
       updateData.packMaxItems =
-        packMaxItems === null ? null : Number(packMaxItems);
+        packMaxItems === null || packMaxItems === ''
+          ? null
+          : Number(packMaxItems);
     }
-    if (hasSpecifications !== undefined) {
-      updateData.hasSpecifications = !!hasSpecifications;
+
+    const normHasSpecifications = normalizeBoolean(hasSpecifications);
+    if (normHasSpecifications !== undefined) {
+      updateData.hasSpecifications = normHasSpecifications;
     }
+
     if (specificationsTitle !== undefined) {
       updateData.specificationsTitle =
         specificationsTitle === ''
@@ -186,8 +212,47 @@ async function hadleUpdateProduct(req, res) {
     }
 
     // nuevo flag hasCatering
-    if (hasCatering !== undefined) {
-      updateData.hasCatering = !!hasCatering;
+    const normHasCatering = normalizeBoolean(hasCatering);
+    if (normHasCatering !== undefined) {
+      updateData.hasCatering = normHasCatering;
+    }
+
+    const normOnlyForCatering = normalizeBoolean(onlyForCatering);
+    if (normOnlyForCatering !== undefined) {
+      updateData.onlyForCatering = normOnlyForCatering;
+    }
+
+    // Campos de texto para catering
+    if (cateringName !== undefined) {
+      updateData.cateringName =
+        cateringName === '' ? null : String(cateringName);
+    }
+
+    if (cateringDescription !== undefined) {
+      updateData.cateringDescription =
+        cateringDescription === '' ? null : String(cateringDescription);
+    }
+
+    if (descriptionPriceCatering !== undefined) {
+      updateData.descriptionPriceCatering =
+        descriptionPriceCatering === ''
+          ? null
+          : String(descriptionPriceCatering);
+    }
+
+    // cateringMinQty (mínimo global de catering)
+    if (cateringMinQty !== undefined) {
+      if (cateringMinQty === null || cateringMinQty === '') {
+        updateData.cateringMinQty = null;
+      } else {
+        const n = Number(cateringMinQty);
+        if (!Number.isInteger(n) || n <= 0) {
+          return res.status(400).json({
+            message: 'cateringMinQty must be a positive integer or null',
+          });
+        }
+        updateData.cateringMinQty = n;
+      }
     }
 
     // sortOrder del PRODUCTO dentro de su categoría
@@ -235,6 +300,7 @@ async function hadleUpdateProduct(req, res) {
       }
     }
 
+    // ----- Parseo de cateringTiers
     let parsedCateringTiers = undefined;
     if (cateringTiers !== undefined) {
       try {

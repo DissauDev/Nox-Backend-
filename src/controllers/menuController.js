@@ -1,3 +1,4 @@
+
 const { prisma } = require("../lib/prisma");
 
 function availabilityWhereForOrderType(orderType) {
@@ -6,23 +7,24 @@ function availabilityWhereForOrderType(orderType) {
 
   const t = String(orderType).toLowerCase();
 
+  
   if (t === "pickup") {
     return { in: ["PICKUP_ONLY", "BOTH"] };
   }
   if (t === "delivery") {
     return { in: ["DELIVERY_ONLY", "BOTH"] };
   }
-   if (t === "both") {
-    return { in: ["BOTH","DELIVERY_ONLY","PICKUP_ONLY"] };
+  if (t === "both") {
+    return { in: ["BOTH", "DELIVERY_ONLY", "PICKUP_ONLY"] };
   }
 
-  // si llega algo raro, no filtramos (o puedes tirar 400)
+  // si llega algo raro, no filtramos (o puedes lanzar 400)
   return undefined;
 }
 
 async function getMenu(req, res) {
   try {
-    const orderType = req.query.orderType; // "pickup" | "delivery"
+    const orderType = req.query.orderType; // "pickup" | "delivery" | "both"
 
     const dbCategories = await prisma.category.findMany({
       where: { status: "AVAILABLE" },
@@ -41,14 +43,26 @@ async function getMenu(req, res) {
       where: {
         status: "AVAILABLE",
         categoryId: { in: dbCategories.map((c) => c.id) },
-
-        ...(availabilityFilter
-          ? { availability: availabilityFilter }
-          : {}),
+        ...(availabilityFilter ? { availability: availabilityFilter } : {}),
       },
       include: {
         options: {
           include: { group: true },
+        },
+        // 👇 Catering: categoría + tiers
+        cateringCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        cateringTiers: {
+          orderBy: { minQty: "asc" },
+          select: {
+            minQty: true,
+            maxQty: true,
+            price: true,
+          },
         },
       },
       orderBy: [
@@ -92,12 +106,31 @@ async function getMenu(req, res) {
             salePrice: p.salePrice,
             status: p.status,
             category: cat.name,
-            availability: p.availability, // ✅ útil para debug / UI
+            availability: p.availability,
+
             options: parsedOptions,
             hasRequiredOptions,
+
+            // 👇 CAMPOS DE CATERING
+            hasCatering: p.hasCatering,
+            onlyForCatering: p.onlyForCatering,
+            cateringMinQty: p.cateringMinQty,
+            cateringCategory: p.cateringCategory
+              ? {
+                  id: p.cateringCategory.id,
+                  name: p.cateringCategory.name,
+                }
+              : null,
+            descriptionPriceCatering: p.descriptionPriceCatering || null,
+            cateringTiers: (p.cateringTiers || []).map((t) => ({
+              minQty: t.minQty,
+              maxQty: t.maxQty,
+              price: t.price,
+            })),
           };
         }),
       }))
+      // solo categorías con productos
       .filter((cat) => cat.items.length > 0);
 
     return res.json(menu);

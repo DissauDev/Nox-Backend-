@@ -50,7 +50,8 @@ async function getAllProducts(req, res) {
       orderBy.splice(1, 0, { [sortBy]: dir });
     }
 
-    // count total
+    // count tot
+    // al
     const [total, products] = await prisma.$transaction([
       prisma.product.count({ where }),
       prisma.product.findMany({

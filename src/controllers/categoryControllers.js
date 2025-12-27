@@ -2,7 +2,7 @@
 const { prisma } = require('../lib/prisma');
 const { ProductStatus } = require('@prisma/client');
 const { validateCreate, validateUpdate } = require('../utils/validators');
-const { gt } = require('zod');
+
 
 // ---------- Handlers ----------
 async function createCategory(req, res) {
@@ -18,10 +18,35 @@ async function createCategory(req, res) {
       longDescription,
       status = ProductStatus.AVAILABLE,
       sortOrder = 0,
+      isCateringCategory = false,
     } = req.body;
 
+    // SortOrder: si mandas 0 o vacío, podríamos colocarlo al final
+    let sortOrderToUse = Number(sortOrder) || 0;
+    if (!Number.isInteger(sortOrderToUse) || sortOrderToUse < 0) {
+      return res
+        .status(400)
+        .json({ message: 'sortOrder must be a non-negative integer' });
+    }
+
+    if (sortOrderToUse === 0) {
+      const agg = await prisma.category.aggregate({
+        _max: { sortOrder: true },
+      });
+      sortOrderToUse = (agg._max.sortOrder ?? 0) + 1;
+    }
+
     const newCategory = await prisma.category.create({
-      data: { name, imageUrl, onCarousel, shortDescription, longDescription, status, sortOrder },
+      data: {
+        name,
+        imageUrl,
+        onCarousel: !!onCarousel,
+        shortDescription,
+        longDescription,
+        status,
+        sortOrder: sortOrderToUse,
+        isCateringCategory: !!isCateringCategory,
+      },
     });
 
     return res.status(201).json(newCategory);
@@ -34,18 +59,54 @@ async function createCategory(req, res) {
   }
 }
 
+
 async function updateCategory(req, res) {
   const { id } = req.params;
   if (!id) return res.status(400).json({ message: 'Id param is required' });
+
   const errors = validateUpdate(req.body);
   if (errors.length) return res.status(400).json({ message: errors });
 
   try {
+    const {
+      name,
+      imageUrl,
+      onCarousel,
+      shortDescription,
+      longDescription,
+      status,
+      sortOrder,
+      isCateringCategory,
+    } = req.body;
+
+    const data = {};
+
+    if (name !== undefined) data.name = name;
+    if (imageUrl !== undefined) data.imageUrl = imageUrl;
+    if (onCarousel !== undefined) data.onCarousel = !!onCarousel;
+    if (shortDescription !== undefined) data.shortDescription = shortDescription;
+    if (longDescription !== undefined) data.longDescription = longDescription;
+    if (status !== undefined) data.status = status;
+
+    if (isCateringCategory !== undefined) {
+      data.isCateringCategory = !!isCateringCategory;
+    }
+
+    if (sortOrder !== undefined) {
+      const n = Number(sortOrder);
+      if (!Number.isInteger(n) || n < 0) {
+        return res
+          .status(400)
+          .json({ message: 'sortOrder must be a non-negative integer' });
+      }
+      data.sortOrder = n;
+    }
+
     const updated = await prisma.category.update({
       where: { id },
-      data: req.body,
+      data,
     });
-    
+
     return res.json(updated);
   } catch (error) {
     if (error?.code === 'P2025') {
@@ -59,22 +120,45 @@ async function updateCategory(req, res) {
   }
 }
 
+
 async function getCategories(req, res) {
   try {
-    const { onCarousel } = req.query;
+    const {
+      onCarousel,
+      status,              // ej: ?status=AVAILABLE
+      isCateringCategory,  // ej: ?isCateringCategory=true
+    } = req.query;
+
     const where = {};
-    if (typeof onCarousel !== 'undefined') where.onCarousel = onCarousel === 'true';
+
+    // 🔹 Filtrar por onCarousel (true/false)
+    if (typeof onCarousel !== "undefined") {
+      where.onCarousel = onCarousel === "true";
+    }
+
+    // 🔹 Filtrar por status (AVAILABLE, UNAVAILABLE, etc.)
+    // si mandas status, se usa tal cual
+    if (typeof status !== "undefined" && status !== "") {
+      where.status = status;
+    }
+
+    // 🔹 Filtrar si es categoría de catering o no
+    if (typeof isCateringCategory !== "undefined") {
+      where.isCateringCategory = isCateringCategory === "true";
+    }
 
     const categories = await prisma.category.findMany({
       where,
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
+
     return res.json(categories);
   } catch (error) {
-    console.error('getCategories error:', error);
-    return res.status(500).json({ message: 'Internal Server Error' });
+    console.error("getCategories error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 }
+
 
 async function getAvailableCarouselCategories(req, res) {
   try {

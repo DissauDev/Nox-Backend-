@@ -8,6 +8,7 @@ generator client {
 }
 
 /// Categorías generales (Desserts, Ice Cream, Cookies…)
+
 model Category {
   id               String        @id @default(uuid())
   name             String        @unique
@@ -17,8 +18,16 @@ model Category {
   shortDescription String
   longDescription  String
   createdAt        DateTime      @default(now())
-  products         Product[]
   sortOrder        Int           @default(1)
+
+  // 👇 NUEVO: indica si esta categoría puede usarse como categoría de catering
+  isCateringCategory Boolean @default(false)
+
+  // Productos que usan esta categoría como categoría principal
+  products Product[] @relation("PrimaryCategoryProducts")
+
+  // Productos que usan esta categoría como categoría de catering
+  cateringProducts Product[] @relation("CateringCategoryProducts")
 
   @@index([sortOrder, name])
 }
@@ -39,37 +48,49 @@ model ProductCateringTier {
 
 /// Producto principal
 model Product {
-  id                  String                @id @default(uuid())
-  name                String                @unique
+  id                  String              @id @default(uuid())
+  name                String              @unique
   price               Float
-  salePrice           Float?                @map("sellPrice")
+  salePrice           Float?              @map("sellPrice")
   specifications      String?
   description         String?
   imageLeft           Json? // { url, blurHash }
   imageRight          Json?
-  type                ProductType           @default(REGULAR)
-  status              ProductStatus         @default(AVAILABLE)
+  type                ProductType         @default(REGULAR)
+  status              ProductStatus       @default(AVAILABLE)
   categoryId          String
-  category            Category              @relation(fields: [categoryId], references: [id])
+  category            Category            @relation("PrimaryCategoryProducts", fields: [categoryId], references: [id])
   options             ProductOption[]
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
   OrderItem           OrderItem[]
-  sortOrder           Int                   @default(1)
+  sortOrder           Int                 @default(1)
   OptionValue         OptionValue[]
-  isOptionItem        Boolean               @default(false) // checkbox “usar como opción”
-  packOptionSurcharge Float                 @default(0) // “precio para la caja”
+  isOptionItem        Boolean             @default(false) // checkbox “usar como opción”
+  packOptionSurcharge Float               @default(0) // “precio para la caja”
   packMaxItems        Int?
-  hasSpecifications   Boolean               @default(false) // muestra el campo de especificaciones
-  specificationsTitle String?               @default("Specifications") // título personalizado para las especificaciones
-  availability        ProductAvailability   @default(BOTH) // ✅ NUEVO
+  hasSpecifications   Boolean             @default(false) // muestra el campo de especificaciones
+  specificationsTitle String?             @default("Specifications") // título personalizado para las especificaciones
+  availability        ProductAvailability @default(BOTH) // ✅ NUEVO
+
+  cateringCategoryId String?
+  cateringCategory   Category? @relation("CateringCategoryProducts", fields: [cateringCategoryId], references: [id])
+
   hasCatering         Boolean               @default(false)
+  cateringName        String? // nombre específico para el producto en modo catering
+  cateringDescription String? // descripción específica para catering
+  cateringMinQty      Int? // mínimo global para poder comprar en catering (además de los rangos)
   cateringTiers       ProductCateringTier[]
+  onlyForCatering     Boolean               @default(false)
+
+  descriptionPriceCatering String? // descripción del precio en modo catering
 
   @@index([status])
   @@index([categoryId, sortOrder, name]) // orden y búsquedas por categoría
   @@index([name])
-  @@index([availability]) // ✅ opcional, ayuda a filtrar rápido
+  @@index([availability])
+  @@index([cateringCategoryId])
+  @@index([hasCatering, onlyForCatering])
 }
 
 enum ProductAvailability {
