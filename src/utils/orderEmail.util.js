@@ -44,20 +44,27 @@ function renderItems(items = []) {
   if (!Array.isArray(items) || items.length === 0) return "";
 
   const rows = items
-    .map(
-      (it) => `
-      <tr>
-        <td class="mobile-block" style="padding:8px 12px; border-bottom:1px solid #eee; word-break:break-word;">
-          ${it?.product?.name ?? it.productId}
-        </td>
-        <td class="mobile-block" style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center;">
-          ${it.quantity}
-        </td>
-        <td class="mobile-block" style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right;">
-          ${currency(Number(it.price || 0))}
-        </td>
-      </tr>`
-    )
+    .map((it) => {
+      // 👇 si la línea es de catering, usamos el nombre de catering
+      const isCateringLine = Boolean(it.isCateringLine);
+      const displayName =
+        isCateringLine && it.product?.cateringName
+          ? it.product.cateringName
+          : it.product?.name ?? it.productId;
+
+      return `
+        <tr>
+          <td class="mobile-block" style="padding:8px 12px; border-bottom:1px solid #eee; word-break:break-word;">
+            ${displayName}
+          </td>
+          <td class="mobile-block" style="padding:8px 12px; border-bottom:1px solid #eee; text-align:center;">
+            ${it.quantity}
+          </td>
+          <td class="mobile-block" style="padding:8px 12px; border-bottom:1px solid #eee; text-align:right;">
+            ${currency(Number(it.price || 0))}
+          </td>
+        </tr>`;
+    })
     .join("");
 
   return `

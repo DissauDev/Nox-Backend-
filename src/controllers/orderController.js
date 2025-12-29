@@ -117,14 +117,15 @@ const { sendAdminNewOrderNotification } = require('../utils/emailToOrderAdmin');
             quantity: Number(i.quantity),
             price: Number(i.price),
             chosenOptions: i.options ?? null,
-            specifications: i?.specifications || ""
+            specifications: i?.specifications || "",
+               isCateringLine: Boolean(i.isCateringLine),
           }))
         }
       },
       include: {
   items: {
     include: {
-      product: { select: { name: true } }, // ✅ para it.product.name
+      product: { select: { name: true,cateringName: true, } }, // ✅ para it.product.name
     },
   },
 }
@@ -512,7 +513,7 @@ const convertOrderToPickup = async (req, res) => {
 const refundOrder = async (req, res) => {
   const { id } = req.params;          // orderId
   const { totalAmount, refundReason } = req.body;   // opcional: monto solicitado a reembolsar (USD)
-console.log(refundReason);
+
 
   try {
     // 1️⃣ Recuperar la orden con la info de delivery (por si la necesitas para UI)

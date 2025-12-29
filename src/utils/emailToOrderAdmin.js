@@ -191,25 +191,30 @@ function renderTableRows(pairs) {
 
 // Tabla de ítems de la orden
 function renderItems(items = []) {
-  console.log(items);
-   console.log(items.product);
   if (!Array.isArray(items) || items.length === 0) return "";
 
   const rows = items
-    .map(
-      (it) => `
-      <tr>
-        <td class="mobile-block" style="padding:10px 12px; border-bottom:1px solid #eaeaea; word-break:break-word;">
-          ${it?.product?.name ?? it.productId}
-        </td>
-        <td class="mobile-block" style="padding:10px 12px; border-bottom:1px solid #eaeaea; text-align:center;">
-          ${it.quantity}
-        </td>
-        <td class="mobile-block" style="padding:10px 12px; border-bottom:1px solid #eaeaea; text-align:right;">
-          ${currency(Number(it.price || 0))}
-        </td>
-      </tr>`
-    )
+    .map((it) => {
+      // Si la línea es de catering, usamos el nombre de catering
+      const isCateringLine = Boolean(it.isCateringLine);
+      const displayName =
+        isCateringLine && it.product?.cateringName
+          ? it.product.cateringName
+          : it.product?.name ?? it.productId;
+
+      return `
+        <tr>
+          <td class="mobile-block" style="padding:10px 12px; border-bottom:1px solid #eaeaea; word-break:break-word;">
+            ${displayName}
+          </td>
+          <td class="mobile-block" style="padding:10px 12px; border-bottom:1px solid #eaeaea; text-align:center;">
+            ${it.quantity}
+          </td>
+          <td class="mobile-block" style="padding:10px 12px; border-bottom:1px solid #eaeaea; text-align:right;">
+            ${currency(Number(it.price || 0))}
+          </td>
+        </tr>`;
+    })
     .join("");
 
   return `

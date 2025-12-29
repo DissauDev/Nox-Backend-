@@ -180,8 +180,10 @@ async function handleCreateProduct(req, res) {
       cateringMinQty,
       descriptionPriceCatering,
       onlyForCatering, // rangos de catering
+      cateringCategory, // nombre de la categoría para el producto en modo catering
     } = req.body;
 
+    console.log("cateringCategory",cateringCategory);
     // 1) Unicidad por name
     const existing = await prisma.product.findUnique({ where: { name } });
     if (existing) {
@@ -205,11 +207,30 @@ if (onlyForCateringFlag && !hasCateringFlag) {
     message: 'If onlyForCatering is true, hasCatering must also be true.',
   });
 }
-// Un producto "onlyForCatering" tiene sentido solo si tiene modo catering activo
-if (onlyForCateringFlag && !hasCateringFlag ) {
-  return res.status(400).json({
-    message: 'If onlyForCatering is true, hasCatering must also be true.',
-  });
+// 👇👇 NUEVO: resolver categoría de catering
+let cateringCat = null;
+
+if (hasCateringFlag || onlyForCateringFlag) {
+  if (cateringCategory) {
+    // buscamos por nombre
+    cateringCat = await prisma.category.findUnique({
+      where: { name: cateringCategory },
+      select: { id: true, name: true, isCateringCategory: true },
+    });
+
+    if (!cateringCat) {
+      return res.status(400).json({ message: 'Invalid Catering Category' });
+    }
+
+    if (!cateringCat.isCateringCategory) {
+      return res.status(400).json({
+        message: 'Selected catering category is not marked as catering category',
+      });
+    }
+  } else {
+    // si no mandan categoría de catering, usamos la misma categoría normal
+    cateringCat = { id: cat.id };
+  }
 }
 
 
@@ -275,6 +296,9 @@ try {
             salePrice != null ? parseFloat(salePrice) : undefined,
           specifications: specifications || undefined,
           category: { connect: { id: cat.id } },
+           ...(cateringCat
+      ? { cateringCategory: { connect: { id: cateringCat.id } } }
+      : {}),
           imageLeft,
           imageRight,
           availability,

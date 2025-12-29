@@ -9,15 +9,15 @@ const createProduct = handleCreateProduct;
 async function getAllProducts(req, res) {
   try {
     const {
-      page = '1',
-      pageSize = '10',
-      status,           // "AVAILABLE" | "DISABLED" | "OUT_OF_STOCK"
-      categoryId,       // string
-      categoryName,     // string (exacto) o podrías hacer contains
-      q,                // búsqueda por nombre (contains)
-      type,             // "REGULAR" | "SEASONAL"
-      sortBy,           // "name" | "price" | "createdAt" | "salePrice" | "sortOrder"
-      sortDir,          // "asc" | "desc"
+      page = "1",
+      pageSize = "10",
+      status,       // "AVAILABLE" | "DISABLED" | "OUT_OF_STOCK" | "all"
+      categoryId,   // string
+      categoryName, // string (exacto)
+      q,            // búsqueda por nombre (contains)
+      type,         // "REGULAR" | "SEASONAL"
+      sortBy,       // "name" | "price" | "createdAt" | "salePrice" | "sortOrder"
+      sortDir,      // "asc" | "desc"
     } = req.query;
 
     const pageNum = Math.max(parseInt(page, 10) || 1, 1);
@@ -26,43 +26,60 @@ async function getAllProducts(req, res) {
 
     // where dinámico
     const where = {
-      ...(status && status !== 'all' ? { status } : {}),
+      ...(status && status !== "all" ? { status } : {}),
       ...(type ? { type } : {}),
-      ...(q ? { name: { contains: q, mode: 'insensitive' } } : {}),
+      ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(categoryName
-        ? { category: { name: categoryName } } // exacto; cambia a contains si quieres
+        ? { category: { name: categoryName } }
         : {}),
     };
 
     // orderBy estable
     const orderBy = [
-      { category: { sortOrder: 'asc' } },
-      { sortOrder: 'asc' },
-      { name: 'asc' },
+      { category: { sortOrder: "asc" } },
+      { sortOrder: "asc" },
+      { name: "asc" },
     ];
 
     // si el cliente envía sortBy/sortDir válidos, los aplicamos al final
-    const allowedSort = new Set(['name', 'price', 'createdAt', 'salePrice', 'sortOrder']);
-    const dir = sortDir === 'desc' ? 'desc' : 'asc';
+    const allowedSort = new Set([
+      "name",
+      "price",
+      "createdAt",
+      "salePrice",
+      "sortOrder",
+    ]);
+    const dir = sortDir === "desc" ? "desc" : "asc";
     if (sortBy && allowedSort.has(sortBy)) {
       // mantener orden por categoría primero; luego criterio custom, luego name
       orderBy.splice(1, 0, { [sortBy]: dir });
     }
 
-    // count tot
-    // al
     const [total, products] = await prisma.$transaction([
       prisma.product.count({ where }),
       prisma.product.findMany({
         where,
         include: {
-          category: { select: { id: true, name: true, sortOrder: true } },
-          options:  { select: { groupId: true } },
-           cateringTiers: {
-          select: { id: true, product: true, productId:true,
-             minQty:true, maxQty:true,price:true   },
-        },
+          category: {
+            select: { id: true, name: true, sortOrder: true },
+          },
+          // 👇 añadimos también la categoría de catering
+          cateringCategory: {
+            select: { id: true, name: true },
+          },
+          options: {
+            select: { groupId: true },
+          },
+          cateringTiers: {
+            orderBy: { minQty: "asc" },
+            select: {
+              id: true,
+              minQty: true,
+              maxQty: true,
+              price: true,
+            },
+          },
         },
         orderBy,
         skip,
@@ -91,6 +108,7 @@ async function getAllProducts(req, res) {
   }
 }
 
+
 // Actualizar Producto
  const updateProduct = hadleUpdateProduct;
 
@@ -102,13 +120,28 @@ async function getProductById(req, res) {
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
-        // 1) Categoría
+        // 1) Categoría principal
         category: {
           select: { id: true, name: true },
         },
+
+        // 👇👇 2) Categoría de catering (id + name)
+        cateringCategory: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+
         cateringTiers: {
-          select: { id: true, product: true, productId:true,
-             minQty:true, maxQty:true,price:true   },
+          select: {
+            id: true,
+            product: true,
+            productId: true,
+            minQty: true,
+            maxQty: true,
+            price: true,
+          },
         },
 
         options: {
@@ -118,10 +151,10 @@ async function getProductById(req, res) {
               OptionValue: { some: { isAvailable: true } },
             },
           },
-          orderBy: { sortOrder: 'asc' },
+          orderBy: { sortOrder: "asc" },
           select: {
             id: true,
-            sortOrder: true, 
+            sortOrder: true,
             groupId: true,
             group: {
               select: {
@@ -130,22 +163,18 @@ async function getProductById(req, res) {
                 required: true,
                 minSelectable: true,
                 maxSelectable: true,
-                selectionTitle:true,
+                selectionTitle: true,
                 showImages: true,
-                // Lista de valores del grupo (solo disponibles)
                 OptionValue: {
                   where: { isAvailable: true },
-                  orderBy: [
-                    { sortOrder: 'asc' }, 
-                    { name: 'asc' },      
-                  ],
+                  orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
                   select: {
                     id: true,
                     name: true,
                     extraPrice: true,
                     imageUrl: true,
                     description: true,
-                    sortOrder: true, 
+                    sortOrder: true,
                   },
                 },
               },
@@ -156,13 +185,13 @@ async function getProductById(req, res) {
     });
 
     if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+      return res.status(404).json({ message: "Product not found" });
     }
 
     return res.status(200).json(product);
   } catch (error) {
-    console.error('getProductById error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error("getProductById error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 }
 

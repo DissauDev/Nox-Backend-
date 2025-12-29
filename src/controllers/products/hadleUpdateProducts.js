@@ -113,9 +113,11 @@ async function hadleUpdateProduct(req, res) {
        cateringName,
       cateringDescription,
       cateringMinQty,
-      descriptionPriceCatering,      
+      descriptionPriceCatering,
+      cateringCategory,        
     } = req.body;
 
+    console.log(cateringCategory,"cateringCategory en update");
   // ----- Normalizaciones / Validaciones básicas
     const updateData = {};
 
@@ -158,6 +160,55 @@ async function hadleUpdateProduct(req, res) {
         updateData.category = { connect: { id: targetCategoryId } };
       }
     }
+    // --- Flags finales de catering (considerando lo que hay en DB si no mandan nada) ---
+const hasCateringFlag =
+  hasCatering !== undefined
+    ? normalizeBoolean(hasCatering)
+    : existing.hasCatering;
+
+const onlyForCateringFlag =
+  onlyForCatering !== undefined
+    ? normalizeBoolean(onlyForCatering)
+    : existing.onlyForCatering;
+
+// Regla: onlyForCatering solo tiene sentido si hasCatering está activo
+if (onlyForCateringFlag && !hasCateringFlag) {
+  return res.status(400).json({
+    message: 'If onlyForCatering is true, hasCatering must also be true.',
+  });
+}
+
+// --- Resolver categoría de catering ---
+// Si el cliente envía explicitamente cateringCategory
+if (cateringCategory !== undefined) {
+  if (
+    cateringCategory === null ||
+    cateringCategory === '' ||
+    cateringCategory === 'null'
+  ) {
+    // limpiar categoría de catering
+    updateData.cateringCategory = { disconnect: true };
+  } else {
+    const cateringCat = await prisma.category.findUnique({
+      where: { name: cateringCategory },
+    });
+    if (!cateringCat) {
+      return res.status(400).json({ message: 'Invalid Catering Category' });
+    }
+  
+    updateData.cateringCategory = { connect: { id: cateringCat.id } };
+  }
+} else if (
+  (hasCateringFlag || onlyForCateringFlag) &&
+  !existing.cateringCategoryId
+) {
+  // Si activan catering y antes no tenía categoría, usamos la categoría base
+  updateData.cateringCategory = { connect: { id: targetCategoryId } };
+} else if (!hasCateringFlag && !onlyForCateringFlag) {
+  // Si apagan todo el modo catering, opcionalmente puedes limpiar la categoría
+  updateData.cateringCategory = { disconnect: true };
+}
+
 
     // Imágenes (si se proveen URLs para reprocesar)
     if (imageLeftUrl) {
@@ -210,17 +261,14 @@ async function hadleUpdateProduct(req, res) {
           ? null
           : String(specificationsTitle);
     }
+// nuevo flag hasCatering / onlyForCatering (usar los flags ya calculados arriba)
+if (hasCatering !== undefined) {
+  updateData.hasCatering = hasCateringFlag;
+}
+if (onlyForCatering !== undefined) {
+  updateData.onlyForCatering = onlyForCateringFlag;
+}
 
-    // nuevo flag hasCatering
-    const normHasCatering = normalizeBoolean(hasCatering);
-    if (normHasCatering !== undefined) {
-      updateData.hasCatering = normHasCatering;
-    }
-
-    const normOnlyForCatering = normalizeBoolean(onlyForCatering);
-    if (normOnlyForCatering !== undefined) {
-      updateData.onlyForCatering = normOnlyForCatering;
-    }
 
     // Campos de texto para catering
     if (cateringName !== undefined) {

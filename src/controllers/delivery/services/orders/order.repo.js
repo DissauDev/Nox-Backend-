@@ -85,6 +85,7 @@ async function createPendingOrder({
             price: Number(i.price),
             chosenOptions: i.options ?? null,
             specifications: i?.specifications || "",
+                isCateringLine: Boolean(i.isCateringLine),
           })),
         },
       },
