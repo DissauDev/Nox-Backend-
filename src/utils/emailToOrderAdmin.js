@@ -1,7 +1,7 @@
 
 function renderAdminDeliveryCancelledEmailHTML(order, delivery, opts = {}) {
   const resolvedLogo = safe(opts.logoUrl) ? opts.logoUrl : getEnvLogoUrl();
-
+//
   const brand = {
     primary: "#b91c1c", // rojo suave para "alerta"
     bg: "#FEF2F2",
