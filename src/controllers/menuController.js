@@ -146,11 +146,9 @@ async function getMenu(req, res) {
         let priceLabel = p.descriptionPriceCatering || null;
         if (!priceLabel && tiers.length > 0) {
           const first = tiers[0];
-          const rangeText = first.maxQty
-            ? `${first.minQty}–${first.maxQty} pcs`
-            : `${first.minQty}+ pcs`;
+    
 
-          priceLabel = `From $${first.price.toFixed(2)} / pc for ${rangeText}`;
+          priceLabel = `From $${first.price.toFixed(2)} each`;
         }
 
         const cateringItem = {

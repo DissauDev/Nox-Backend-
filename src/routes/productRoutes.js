@@ -16,20 +16,26 @@ const {
   getProductOptions
   } = require('../controllers/productOptionsController');
 
+
+  const {
+    authenticateBearer,
+    requireAdminOrEmployee,
+  
+  } = require("../middlewares/authMiddleware");
 const router = express.Router();
 
-router.post('/products', createProduct);
-router.get('/products', getAllProducts);
+router.post('/products',authenticateBearer,requireAdminOrEmployee, createProduct);
+router.get('/products',authenticateBearer,requireAdminOrEmployee, getAllProducts);
 router.get('/products/:id', getProductById);
-router.put('/products/:id', updateProduct);
-router.delete('/products/:id', deleteProduct);
-router.patch('/products/:id/status',   updateProductStatus);
+router.put('/products/:id',authenticateBearer,requireAdminOrEmployee, updateProduct);
+router.delete('/products/:id',authenticateBearer,requireAdminOrEmployee, deleteProduct);
+router.patch('/products/:id/status',authenticateBearer,requireAdminOrEmployee,updateProductStatus);
 router.get("/products/:id/suggestions", getProductSuggestions);
 
 
-router.post('/products/:id/options',   setProductOptions);
+router.post('/products/:id/options',setProductOptions);
 router.get('/products/:id/options',    getProductOptions);
-router.patch('/products/:id/sort-order',   updateProdSortOrder );
+router.patch('/products/:id/sort-order',updateProdSortOrder );
 
 module.exports = router;
  

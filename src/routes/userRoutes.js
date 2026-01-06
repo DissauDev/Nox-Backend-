@@ -1,54 +1,49 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 const {
-    createUser,
-    getAllUsers,
-    getUserById,
-    deleteUser,
-    updateUser,
-    getCustomers,
-    getUsersStats,
-    updatePassword,
-    getStaffUsers,
-    login,
-    forgotPassword,
-    resetPassword,
-    refreshTokenHandler,
-    logout
-  } = require('../controllers/userController');
+  authenticateBearer,
+  requireAdminOrEmployee,
+  requireAdmin,
+} = require("../middlewares/authMiddleware");
+
+const {
+  createUser,
+  getAllUsers,
+  getUserById,
+  deleteUser,
+  updateUser,
+  getCustomers,
+  getUsersStats,
+  updatePassword,
+  getStaffUsers,
+  login,
+  forgotPassword,
+  resetPassword,
+  refreshTokenHandler,
+  logout,
+} = require("../controllers/userController");
+
+// PUBLIC
+router.post("/user/create", createUser);
+router.post("/user/login", login);
+router.post("/user/forgot-password", forgotPassword);
+router.post("/user/reset-password", resetPassword);
+router.post("/user/refresh-token", refreshTokenHandler);
+router.post("/user/logout",authenticateBearer, logout); 
 
 
-router.post('/user/create', createUser);
+// PROTEGIDAS (ADMIN o EMPLOYEE)
+router.get("/user/all", authenticateBearer, requireAdminOrEmployee, getAllUsers);
+router.get("/user-customers", authenticateBearer, requireAdminOrEmployee, getCustomers);
+router.get("/user-stats", authenticateBearer, requireAdminOrEmployee, getUsersStats);
+router.get("/users/staff", authenticateBearer, requireAdminOrEmployee, getStaffUsers);
+router.delete("/user/:id", authenticateBearer, requireAdmin, deleteUser);
 
-router.post('/user/login', login);
-
-router.post('/user/logout', logout);
-
-router.post('/user/reset-password', resetPassword);
-
-router.post('/user/forgot-password', forgotPassword);
-
-router.post('/user/refresh-token', refreshTokenHandler);
-
-router.get('/user/all', getAllUsers);
-
-router.get('/user/:id', getUserById);
-
-router.get('/user-customers', getCustomers);  
-
-router.get('/user-stats', getUsersStats); 
-
-router.get('/users/staff', getStaffUsers);
-
-router.put('/user/:id', updateUser);
-
-router.put('/user/password/:id', updatePassword);
-
-
-router.delete('/user/:id', deleteUser);
-
-
+// PROTEGIDAS (autenticado)
+router.get("/user/:id", authenticateBearer, getUserById);
+router.put("/user/:id", authenticateBearer, updateUser);
+router.put("/user/password/:id", authenticateBearer, updatePassword);
 
 
 module.exports = router;

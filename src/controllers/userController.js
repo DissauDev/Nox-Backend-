@@ -6,6 +6,13 @@ const { sendEmail } = require('../utils/email');
 const { verifyRefreshToken }= require('../utils/jwtUtils.js');
 const { generateAccessToken, generateRefreshToken }= require('../utils/jwtUtils.js');
 
+
+const REFRESH_DAYS = 1;
+const refreshExpiryDate = () => new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+
+const REFRESH_TOKEN_TTL_DAYS = 1;
+const calcRefreshExpiry = () =>
+  new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 // Crear usuario
 const createUser = async (req, res) => {
   const { email, password, role, name } = req.body;
@@ -62,7 +69,7 @@ const createUser = async (req, res) => {
     // Guardar el refreshToken en la base de datos del usuario recién creado
     await prisma.user.update({
       where: { id: newUser.id },
-      data: { refreshToken }
+      data: { refreshToken,  refreshTokenExpires: refreshExpiryDate(), }
     });
 
     // Excluir la contraseña del objeto de respuesta
@@ -458,7 +465,7 @@ const accessToken  = generateAccessToken(payload);
 const refreshToken = generateRefreshToken(payload);
     // Excluir la contraseña del objeto user// Guarda el refresh token en BD para que /refresh pueda validarlo luego
    await prisma.user.update({
-     where: { id: user.id },     data: { refreshToken }
+     where: { id: user.id },     data: { refreshToken, refreshTokenExpires: refreshExpiryDate(), }
    });
     const { password: _pw, refreshToken: _rt, ...userWithoutSensitive } = user;
     res.status(201).json({
@@ -477,70 +484,6 @@ const refreshToken = generateRefreshToken(payload);
 
 }
 
-const refreshTokenHandler = async (req, res) => {
-  const { refreshToken } = req.body;
-  if (!refreshToken) {
-    return res.status(400).json({ message: 'Not got a refreshToken' });
-  }
-
-  try {
-    // Verificamos firma y expiración del refresh token
-    const decoded = await verifyRefreshToken(refreshToken);
-
-    // Opcional: validamos que ese refreshToken aparezca en BD para ese usuario
-    // Por ejemplo:
-    const userInDb = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: { refreshToken: true }
-    });
-
-    if (!userInDb || userInDb.refreshToken !== refreshToken) {
-      return res.status(401).json({ message: 'Refresh token invalid' });
-    }
-
-    // Si todo está OK, generamos nuevos tokens
-    const payload = {
-      id: decoded.id,
-      email: decoded.email,
-      role: decoded.role
-    };
-
-    const newAccessToken = generateAccessToken(payload);
-    const newRefreshToken = generateRefreshToken(payload);
-
-    // Guardamos el nuevo refreshToken en BD (invalidando el anterior)
-    await prisma.user.update({
-      where: { id: decoded.id },
-      data: { refreshToken: newRefreshToken }
-    });
-
-    res.json({
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken
-    });
-  } catch (err) {
-    console.error('Error en refreshTokenHandler:', err);
-    return res.status(401).json({ message: 'Refresh token invalid o expired' });
-  }
-};
-
-
-const logout = (req, res) => {
-  
-  try {
-    // Borra la cookie donde guardas el JWT
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/'
-    });
-    return res.status(200).json({ message: 'Logged out successfully' });
-  } catch (err) {
-    console.error('Logout error:', err);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-};
 const deleteUser = async (req, res) => {
     const {id} = req.params
     if (!id) {
@@ -593,5 +536,141 @@ const updateUser = async (req, res,) => {
   }
 };
 
+const refreshTokenHandler = async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken || typeof refreshToken !== "string") {
+    return res.status(400).json({ message: "Not got a refreshToken" });
+  }
+
+  try {
+    // 1) Verificamos firma y expiración del refresh token (JWT)
+    const decoded = await verifyRefreshToken(refreshToken);
+
+    // 2) Verificamos que ese refresh token sea el activo en BD + no esté expirado server-side
+    const userInDb = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        refreshToken: true,
+        refreshTokenExpires: true,
+      },
+    });
+
+    // Si no existe usuario o no coincide el refresh token => posible robo/reuse
+    if (!userInDb || !userInDb.refreshToken || userInDb.refreshToken !== refreshToken) {
+      // Seguridad: revoca cualquier sesión activa del usuario si existe
+      if (userInDb?.id) {
+        await prisma.user.update({
+          where: { id: userInDb.id },
+          data: { refreshToken: null, refreshTokenExpires: null },
+        });
+      }
+      return res.status(401).json({ message: "Refresh token invalid" });
+    }
+
+    // Expiración server-side (fuerza re-login aunque el cliente conserve token)
+    if (
+      !userInDb.refreshTokenExpires ||
+      userInDb.refreshTokenExpires.getTime() < Date.now()
+    ) {
+      await prisma.user.update({
+        where: { id: userInDb.id },
+        data: { refreshToken: null, refreshTokenExpires: null },
+      });
+      return res.status(401).json({
+        message: "Refresh token expired. Please login again.",
+      });
+    }
+
+    // 3) Generamos nuevos tokens (rotación)
+    const payload = {
+      id: userInDb.id,
+      email: userInDb.email,
+      role: userInDb.role,
+    };
+
+    const newAccessToken = generateAccessToken(payload);
+    const newRefreshToken = generateRefreshToken(payload);
+
+    // 4) Guardamos el nuevo refresh token en BD (invalidando el anterior)
+    await prisma.user.update({
+      where: { id: userInDb.id },
+      data: {
+        refreshToken: newRefreshToken,
+        refreshTokenExpires: calcRefreshExpiry(),
+      },
+    });
+
+    return res.json({
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (err) {
+    console.error("Error en refreshTokenHandler:", err);
+    // Si el JWT refresh ya está vencido o firma inválida
+    return res.status(401).json({ message: "Refresh token invalid o expired" });
+  }
+};
+
+/**
+ * POST /auth/logout
+ * OJO: este endpoint asume que el front te manda refreshToken para revocarlo,
+ * o que ya tienes middleware auth y pones req.user.id.
+ *
+ * body: { refreshToken? }
+ */
+const logout = async (req, res) => {
+  try {
+    // Si usas cookies en algún punto, esto está OK (no estorba).
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+
+    // ✅ Logout REAL: revocar refresh token en BD
+    // Opción 1 (recomendada en tu arquitectura actual): el cliente manda refreshToken
+    const { refreshToken } = req.body || {};
+
+    if (refreshToken && typeof refreshToken === "string") {
+      // Validamos el refresh para obtener el userId y revocar
+      try {
+        const decoded = await verifyRefreshToken(refreshToken);
+
+        // Solo revoca si coincide con el guardado (evita borrar sesiones por tokens random)
+        const userInDb = await prisma.user.findUnique({
+          where: { id: decoded.id },
+          select: { refreshToken: true },
+        });
+
+        if (userInDb?.refreshToken && userInDb.refreshToken === refreshToken) {
+          await prisma.user.update({
+            where: { id: decoded.id },
+            data: { refreshToken: null, refreshTokenExpires: null },
+          });
+        }
+      } catch (e) {
+        // Si el refresh es inválido/expirado, igual respondemos OK (logout es idempotente)
+      }
+    }
+
+    // Opción 2: si tienes middleware y ya viene el user id:
+    // if (req.user?.id) {
+    //   await prisma.user.update({
+    //     where: { id: req.user.id },
+    //     data: { refreshToken: null, refreshTokenExpires: null },
+    //   });
+    // }
+
+    return res.status(200).json({ message: "Logged out successfully" });
+  } catch (err) {
+    console.error("Logout error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
 module.exports = { createUser,getStaffUsers, getAllUsers, updateUser, deleteUser,refreshTokenHandler,
    getUserById, login, updatePassword, getCustomers ,getUsersStats, logout, forgotPassword, resetPassword};

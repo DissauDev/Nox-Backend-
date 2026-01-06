@@ -1,6 +1,13 @@
 
 // routes/productRoutes.js
 const express = require('express');
+
+  const {
+    authenticateBearer,
+    requireAdminOrEmployee,
+  
+  } = require("../middlewares/authMiddleware");
+
 const {
  importGoogleSheet
  
@@ -14,11 +21,11 @@ const {
 
 const router = express.Router();
 
-router.post('/googleSheet/import', importGoogleSheet);
+router.post('/googleSheet/import',authenticateBearer,requireAdminOrEmployee, importGoogleSheet);
 
 
 // POST para pruebas con Postman (body JSON con filtros)
-router.post('/googleSheet/export.csv', exportCsvPost);
+router.post('/googleSheet/export.csv',authenticateBearer,requireAdminOrEmployee, exportCsvPost);
 
 module.exports = router;
  

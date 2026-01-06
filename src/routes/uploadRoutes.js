@@ -5,7 +5,11 @@ const multer = require('multer');
 const path = require('path');
 const uploadController = require('../controllers/uploadController');
 
-const MAX_FILES_PER_REQUEST = 50; // 👈 límite por solicitud (ajústalo)
+const {
+  authenticateBearer,
+  requireAdminOrEmployee,
+} = require("../middlewares/authMiddleware");
+
 
 // Filtro de tipos permitido (opcional pero recomendado)
 const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -29,15 +33,15 @@ const upload = multer({
   },
 });
 
-router.post('/upload/create', upload.single('image'), uploadController.uploadImage);
+router.post('/upload/create', upload.single('image'), authenticateBearer, uploadController.uploadImage);
 
-router.get('/upload/getImages', uploadController.getImages);
+router.get('/upload/getImages',authenticateBearer, uploadController.getImages);
 
-router.get('/upload/:filename', uploadController.getImageDetails);
+router.get('/upload/:filename',authenticateBearer, uploadController.getImageDetails);
 
-router.delete('/upload/:filename', uploadController.deleteImage);
+router.delete('/upload/:filename',authenticateBearer,requireAdminOrEmployee, uploadController.deleteImage);
 
-router.put('/upload/:filename', upload.single('image'), uploadController.updateImage);
+router.put('/upload/:filename', upload.single('image'),authenticateBearer,  uploadController.updateImage);
 
 router.post(
   '/upload/bulk',

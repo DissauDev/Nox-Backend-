@@ -29,7 +29,8 @@ async function getDeliveryQuote(req, res) {
       tip,
         dropoffContactFirstName,
   dropoffContactLastName,
-     pickup_instructions
+     pickup_instructions,
+     items
     } = req.body;
 
 
@@ -44,9 +45,52 @@ async function getDeliveryQuote(req, res) {
     if (!DOORDASH_PICKUP_ADDRESS || !DOORDASH_PICKUP_PHONE) {
       return res.status(500).json({
         message:
-          'Faltan DOORDASH_PICKUP_ADDRESS o DOORDASH_PICKUP_PHONE en el .env',
+          'Can not find DOORDASH_PICKUP_ADDRESS or DOORDASH_PICKUP_PHONE in .env',
       });
     }
+     // ✅ Validar que haya items
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: 'items is required to build DoorDash item details',
+      });
+    }
+
+    // ✅ Construir ddItems igual que en runDeliveryCheckout
+    const productIds = items.map((i) => i.productId);
+
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const ddItems = items.map((it) => {
+      const prod = products.find((p) => p.id === it.productId);
+      const baseName = prod?.name || "Item";
+
+      let descriptionParts = [];
+
+      if (Array.isArray(it.options) && it.options.length > 0) {
+        const optsText = it.options
+          .map((opt) => `${opt.groupName}: ${opt.name}`)
+          .join(" | ");
+        descriptionParts.push(`Options: ${optsText}`);
+      }
+
+      if (it?.specifications) {
+        descriptionParts.push(`Notes: ${it.specifications}`);
+      }
+
+      return {
+        name: baseName,
+        quantity: Number(it.quantity),
+        external_id: it.productId,
+        description:
+          descriptionParts.length > 0 ? descriptionParts.join(" || ") : undefined,
+      };
+    });
 
     // 1) Crear JWT de DoorDash
     const ddJwt = createDoorDashJwt();
@@ -78,6 +122,7 @@ async function getDeliveryQuote(req, res) {
       // Dinero en centavos
       order_value: Number(orderValue), // p. ej. 4599 = $45.99
       tip: tip != null ? Number(tip) : undefined,
+       items: ddItems,
     };
 
     // 3) Llamar a DoorDash
@@ -121,6 +166,53 @@ async function getDeliveryQuote(req, res) {
     });
   }
 }
+/**
+ * GET /delivery/doordash/:externalId
+ * Retorna desde DoorDash Drive la información real de la delivery.
+ */
+async function getDoorDashDelivery(req, res) {
+  try {
+    const { externalId } = req.params;
+
+    if (!externalId) {
+      return res.status(400).json({
+        message: "externalId param is required",
+      });
+    }
+
+    // Crear JWT
+    const ddJwt = createDoorDashJwt();
+
+    const url = `${DOORDASH_API_BASE}/drive/v2/deliveries/${externalId}`;
+
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${ddJwt}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      delivery: response.data,
+    });
+  } catch (error) {
+    console.error("[DoorDash] Error obteniendo delivery:", error.response?.data || error.message);
+
+    if (error.response) {
+      return res.status(error.response.status).json({
+        message: error.response?.data?.message || "DoorDash error",
+        details: error.response?.data,
+      });
+    }
+
+    return res.status(500).json({
+      message: "Internal error retrieving DoorDash delivery",
+      details: error.message,
+    });
+  }
+}
+
 
 // Estados desde los que PERMITES cancelar
 const CANCELLABLE_DELIVERY_STATUSES = new Set(["REQUESTED", "ACCEPTED"]);
@@ -238,7 +330,9 @@ async function cancelDeliveryController(req, res) {
 
 
 
+
 module.exports = {
   getDeliveryQuote,
-  cancelDeliveryController
+  cancelDeliveryController,
+  getDoorDashDelivery
 };

@@ -9,16 +9,21 @@ const {
 
 const router = express.Router();
 
+  const {
+    authenticateBearer,
+    requireAdminOrEmployee,
+  
+  } = require("../middlewares/authMiddleware");
 
-router.get('/analytics/performance', getPerformance);
+router.get('/analytics/performance',authenticateBearer,requireAdminOrEmployee, getPerformance);
 
 
-router.get('/analytics/categories-sales', getCategorySales);
+router.get('/analytics/categories-sales',authenticateBearer,requireAdminOrEmployee, getCategorySales);
 
-router.get('/analytics/overview', getDashboardStats);
+router.get('/analytics/overview',authenticateBearer,requireAdminOrEmployee, getDashboardStats);
 
-router.get('/analytics/products', getProductAnalytics);
+router.get('/analytics/products',authenticateBearer,requireAdminOrEmployee, getProductAnalytics);
 
-router.get('/analytics/sales-trend', getSalesTrend);
+router.get('/analytics/sales-trend',authenticateBearer,requireAdminOrEmployee, getSalesTrend);
 
 module.exports = router;

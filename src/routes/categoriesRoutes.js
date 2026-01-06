@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
+  const {
+    authenticateBearer,
+    requireAdminOrEmployee,
+  
+  } = require("../middlewares/authMiddleware");
+
+
 const {
   createCategory,
   getCategories,
@@ -15,7 +22,7 @@ const {
 } = require('../controllers/categoryControllers');
 
 
-router.post('/categories', createCategory);
+router.post('/categories',authenticateBearer,requireAdminOrEmployee, createCategory);
 
 
 router.get('/categories/available', getCategoriesAvailable);
@@ -27,12 +34,12 @@ router.get('/categories-with-sales', getCategoriesWithSales);
 
 router.get('/categories/:id', getCategoryById);
 
-router.put('/categories/:id', updateCategory);
+router.put('/categories/:id',authenticateBearer,requireAdminOrEmployee, updateCategory);
 
 
-router.patch('/categories/:id/status', updateCategoryStatus);
+router.patch('/categories/:id/status',authenticateBearer,requireAdminOrEmployee, updateCategoryStatus);
 
-router.delete('/categories/:id', deleteCategory);
+router.delete('/categories/:id',authenticateBearer,requireAdminOrEmployee, deleteCategory);
 
 router.get('/categories-available-carousel', getAvailableCarouselCategories);
 

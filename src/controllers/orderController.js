@@ -257,9 +257,16 @@ const getOrderById = async (req, res) => {
       where: { id },
       include: {
         // 👇 usuario
-        user: true,
-
-        // 👇 ítems + producto + opciones
+           user: {
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      createdAt: true,
+    },
+  },
+ // 👇 ítems + producto + opciones
         items: {
           include: {
             product: {

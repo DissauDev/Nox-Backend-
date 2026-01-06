@@ -293,6 +293,7 @@ model User {
   passwordResetToken   String? // guardará el hash del token temporal
   passwordResetExpires DateTime? // marca cuándo vence ese token
   refreshToken         String? // guardará el token de refresco activo
+  refreshTokenExpires  DateTime?
 }
 
 enum ProductType {

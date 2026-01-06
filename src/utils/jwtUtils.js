@@ -12,7 +12,7 @@ const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET_REFRESH;
 
 
 const ACCESS_TOKEN_EXPIRES_IN =  '60m';
-const REFRESH_TOKEN_EXPIRES_IN = '7d';
+const REFRESH_TOKEN_EXPIRES_IN = '24h';
 
 
  function generateAccessToken(payload) {
